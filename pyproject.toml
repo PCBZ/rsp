@@ -1,0 +1,33 @@
+[project]
+name = "rsp"
+version = "0.1.0.dev0"
+description = "RAG Security Protocol — where security tools hook into a RAG pipeline, and what they return"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+
+# The protocol core has no runtime dependencies: subprocess plus JSON from the
+# stdlib. Anything that pulls in a third party belongs in an optional extra, so
+# that a plugin author installing rsp does not inherit a RAG framework.
+dependencies = []
+
+[project.optional-dependencies]
+# Reference host adapter (rsp/guards.py). Optional on purpose — see D7.
+llamaindex = ["llama-index-core>=0.14,<0.15"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "rsp[llamaindex]",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rsp"]
+
+[tool.ruff]
+line-length = 100

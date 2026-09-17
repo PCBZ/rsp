@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+#
+# The standards themselves live in AGENTS.md, which CodeRabbit detects
+# automatically (no filePatterns needed) and coding agents read too.
+#
+# Path instructions below are a targeted supplement, per the official guidance —
+# only what is specific to a path and cannot be inferred from the code. Add more
+# once a real review misses something, not before.
+
+language: 'en-US'
+
+# 250 char limit.
+tone_instructions: >-
+  Be terse and concrete. One sentence per finding, naming the failure. No praise,
+  no summarising what the diff does, no restating a rule without applying it. If
+  the diff is clean, say so and stop.
+
+reviews:
+  profile: 'chill'
+  poem: false
+  high_level_summary: true
+  request_changes_workflow: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    - path: 'rsp/**/*.py'
+      instructions: >-
+        The two that matter most here: every error path must end in BLOCK unless
+        a per-plugin on_error says otherwise, and a plugin-supplied span must be
+        validated (in range, start <= end, on a UTF-8 boundary) before anything
+        slices with it.
+
+    - path: 'rsp/guards.py'
+      instructions: >-
+        Under 80 lines of code. This file deliberately imports rsp.runtime, which
+        does not exist yet — do not suggest stubbing it, making it runnable, or
+        adding tests for it.
+
+    - path: 'plugins/**'
+      instructions: >-
+        Adapters wrap unmodified upstream binaries and stay under 80 lines. Flag
+        detection logic the wrapped tool already performs. One JSON object on
+        stdout per call; diagnostics on stderr.
+
+    - path: 'SPEC.md'
+      instructions: >-
+        Flag any new MUST without a conformance fixture in the same PR, and any
+        clause without a Rationale.
+
+  tools:
+    ruff:
+      enabled: true          # skipped automatically once ruff runs in CI
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    yamllint:
+      enabled: true
+    gitleaks:
+      enabled: true          # the demo corpus will carry fabricated secrets
+    languagetool:
+      enabled: false         # prose nitpicks on a doc-heavy repo
+    markdownlint:
+      enabled: false
+
+  pre_merge_checks:
+    custom_checks:
+      - name: 'Fail closed'
+        mode: 'warning'
+        instructions: >-
+          If this PR adds or changes an error path in rsp/ — an except handler, a
+          timeout branch, a parse failure, a size cap — verify it results in
+          BLOCK unless an explicit per-plugin on_error setting says otherwise.
+          Report a failure naming the file and line if any error path results in
+          ALLOW, skips the plugin silently, or lets the exception escape.
+
+      - name: 'MUST has a fixture'
+        mode: 'warning'
+        instructions: >-
+          If this PR adds or modifies a MUST, MUST NOT, or SHALL clause in
+          SPEC.md, verify the same PR adds or updates a conformance case under
+          conformance/cases/ that exercises it. Report a failure naming each
+          clause left without one.
