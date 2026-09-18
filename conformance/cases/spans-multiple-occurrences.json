@@ -1,0 +1,18 @@
+{
+  "name": "spans-multiple-occurrences",
+  "clause": "S2",
+  "plugin": "rsp-echo",
+  "note": "Every occurrence, not only the first.",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "a secret and another secret" },
+  "expect": {
+    "response": {
+      "verdict": "REDACT",
+      "spans": [
+        { "start": 2, "end": 8, "type": "echo-test" },
+        { "start": 21, "end": 27, "type": "echo-test" }
+      ],
+      "replacement": "[REDACTED:echo-test]",
+      "severity": "medium"
+    }
+  }
+}

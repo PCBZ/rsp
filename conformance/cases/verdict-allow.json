@@ -1,0 +1,8 @@
+{
+  "name": "verdict-allow",
+  "clause": "V1, V2",
+  "plugin": "rsp-echo",
+  "note": "ALLOW is valid with no other field present.",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "just some notes" },
+  "expect": { "response": { "verdict": "ALLOW" } }
+}

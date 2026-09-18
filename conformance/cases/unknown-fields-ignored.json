@@ -1,0 +1,14 @@
+{
+  "name": "unknown-fields-ignored",
+  "clause": "T3",
+  "plugin": "rsp-echo",
+  "note": "Fields from a future protocol version must not be an error.",
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "just some notes",
+    "future_field": { "x": 1 },
+    "trace_id": "abc123"
+  },
+  "expect": { "response": { "verdict": "ALLOW" } }
+}

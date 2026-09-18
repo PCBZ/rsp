@@ -1,0 +1,16 @@
+{
+  "name": "handshake",
+  "clause": "H1",
+  "plugin": "rsp-echo",
+  "request": { "rsp_version": "0.1", "hook": "handshake" },
+  "expect": {
+    "response": {
+      "rsp_version": "0.1",
+      "name": "rsp-echo",
+      "version": "0.1.0",
+      "hooks": ["on_chunk", "on_retrieve", "on_response"],
+      "deterministic": true,
+      "max_inline_bytes": 1048576
+    }
+  }
+}
