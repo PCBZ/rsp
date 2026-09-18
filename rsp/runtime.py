@@ -1,8 +1,14 @@
-"""Subprocess invocation — issue #4.
+"""Plugin invocation and codec — issues #4 and #6.
 
-Lifecycle only: start a plugin, feed it, drain it, reap it. No JSON (#6), no
-handshake (#5), no verdicts (#7). This layer returns bytes and a classification;
-turning a failure into BLOCK (E1) belongs to the layer above.
+Two layers, deliberately separable:
+
+    invoke()  bytes in, bytes out, plus a classification of how the process
+              ended. Knows nothing about JSON.
+    call()    a request mapping in, a parsed response out, or an outcome
+              explaining why there is none.
+
+Neither turns a failure into BLOCK. That is E1, and it belongs to the layer
+that knows about verdicts (#7).
 
 Spawn-per-call is the v0.1 process model (Q6).
 """
@@ -10,13 +16,15 @@ Spawn-per-call is the v0.1 process model (Q6).
 from __future__ import annotations
 
 import enum
+import json
 import os
 import signal
 import subprocess
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 DEFAULT_TIMEOUT = 5.0  # seconds, per call (Q4)
 DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout (Q7)
@@ -24,7 +32,12 @@ _CHUNK = 65536
 
 
 class Outcome(enum.Enum):
-    """What happened to the process. Everything but OK is an error under E1."""
+    """How a call ended. Everything but OK is an error under E1 and E3.
+
+    The first six describe the process; the last two describe what it said.
+    Kept in one enum because a caller asking "may I trust this response?" does
+    not care which half went wrong, while a caller writing a log line does.
+    """
 
     OK = "OK"
     TIMEOUT = "TIMEOUT"
@@ -33,6 +46,8 @@ class Outcome(enum.Enum):
     TRUNCATED = "TRUNCATED"
     CRASHED = "CRASHED"
     UNSPAWNABLE = "UNSPAWNABLE"
+    EMPTY = "EMPTY"
+    MALFORMED = "MALFORMED"
 
 
 @dataclass(frozen=True)
@@ -193,3 +208,74 @@ def invoke(
         exit_code=proc.returncode,
         duration=time.monotonic() - started,
     )
+
+
+def encode(request: Mapping[str, Any]) -> bytes:
+    """A request on the wire: compact UTF-8 JSON, one object.
+
+    ensure_ascii is off so that content stays UTF-8 rather than u-escapes.
+    Escaped, the bytes a plugin receives would no longer line up with the byte
+    offsets it is expected to report (S1).
+    """
+    return json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
+    """Exactly one JSON object, and nothing else (T2, Q7).
+
+    Not "the first object we can find": a plugin that prints a debug line
+    before its response has put diagnostics on the protocol channel, and the
+    host cannot tell that apart from a response it should act on. Rejecting is
+    the only reading that keeps stdout meaningful.
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return Outcome.MALFORMED, None
+
+    if not text.strip():
+        return Outcome.EMPTY, None
+
+    try:
+        payload, end = json.JSONDecoder().raw_decode(text.lstrip())
+    except json.JSONDecodeError:
+        return Outcome.MALFORMED, None
+
+    if text.lstrip()[end:].strip():
+        return Outcome.MALFORMED, None  # a second object, or trailing noise
+    if not isinstance(payload, dict):
+        return Outcome.MALFORMED, None  # a list or a bare string is not a response
+
+    return Outcome.OK, payload
+
+
+@dataclass(frozen=True)
+class Reply:
+    outcome: Outcome
+    payload: dict[str, Any] | None
+    invocation: Invocation
+
+    @property
+    def ok(self) -> bool:
+        return self.outcome is Outcome.OK
+
+
+def call(
+    command: Sequence[str],
+    request: Mapping[str, Any],
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+    max_output: int = DEFAULT_MAX_OUTPUT,
+) -> Reply:
+    """One plugin call, from a request mapping to a parsed response.
+
+    Never raises (E2). A process that failed is reported as it failed; only a
+    process that ended cleanly has its output parsed, because output from a
+    killed or truncated call is a fragment whether or not it happens to parse.
+    """
+    invocation = invoke(command, encode(request), timeout=timeout, max_output=max_output)
+    if not invocation.ok:
+        return Reply(invocation.outcome, None, invocation)
+
+    outcome, payload = decode(invocation.stdout)
+    return Reply(outcome, payload, invocation)
