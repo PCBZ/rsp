@@ -178,6 +178,29 @@ required to interpret them.
 *Rationale: every host implementation that touches offsets is another chance to
 get them wrong; `rsp/guards.py` receives finished content instead.*
 
+**S5.** Every plugin on a hook MUST receive the original content. Redaction
+happens once, after the last plugin has answered.
+*Rationale: settles Q2. The alternative — handing plugin N+1 what plugin N
+redacted — means each plugin reports offsets into a different string and the
+host must map them back, with a replacement of a different length shifting
+every later range. One coordinate system costs duplicate findings on the same
+bytes, which is what S6 is for.*
+
+**S6.** Overlapping or adjacent spans MUST coalesce into one range. The
+replacement used is that of the highest-severity contributing span; ties go to
+the earlier plugin in configured order.
+*Rationale: settles Q1. Adjacent ranges merge as well, because
+`[REDACTED][REDACTED]` tells a reader exactly where the boundary fell. The tie
+rule exists so that composition does not depend on which plugin answered first
+— any rule short of a total order makes the output non-deterministic.*
+
+**S7.** `severity` is one of `low`, `medium`, `high`, `critical`, in that order.
+An absent or unrecognized value ranks lowest.
+*Rationale: S6 compares severities, so they need an order. Unrecognized ranks
+lowest rather than erroring, because D8 requires ignoring what is not
+understood, and a plugin inventing a severity should not outrank one using the
+scale.*
+
 ---
 
 ## 8. Errors
@@ -213,8 +236,6 @@ and will be settled by a fixture, not by prose.
 
 | | |
 |---|---|
-| Q1 | Overlapping `REDACT` spans from different plugins |
-| Q2 | Whether plugin N+1 sees original or redacted content |
 | Q3 | Whether `on_retrieve` reports dropped items to the user |
 | Q4 | Timeout default |
 | Q6 | Spawn-per-call vs a persistent process, and what the handshake costs per ingest |
@@ -234,7 +255,7 @@ oversight.
 
 | Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, H4, K1, K2, Q1, S3, S4, E1, E2, E3, V4 |
+| **Not yet** | T1, H2, H3, H4, K1, K2, Q1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
 
 Everything uncovered is a requirement on the **host**, and nothing can exercise
 it until the runtime exists (#4–#7) and the kit runs standalone (#19). A
