@@ -68,6 +68,13 @@ left out until a plugin needs it.*
 `on_chunk` and is handed a retrieval hit has no way to refuse it, and its
 verdict for that hook means nothing.*
 
+**H4.** A declaration MAY lower a limit the host imposes. It MUST NOT raise one.
+`max_inline_bytes` above the host's own limit MUST be clamped to the host's.
+*Rationale: a declaration is a plugin's statement about itself, not a request
+for resources. A plugin that could raise the host's inline limit would choose
+how much memory the host spends on its behalf, which is the output-cap attack
+(Q7) arriving through the handshake instead of through stdout.*
+
 ---
 
 ## 4. Hooks
@@ -227,7 +234,7 @@ oversight.
 
 | Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, K1, K2, Q1, S3, S4, E1, E2, V4 |
+| **Not yet** | T1, H2, H3, H4, K1, K2, Q1, S3, S4, E1, E2, E3, V4 |
 
 Everything uncovered is a requirement on the **host**, and nothing can exercise
 it until the runtime exists (#4–#7) and the kit runs standalone (#19). A
