@@ -30,6 +30,7 @@ class Outcome(enum.Enum):
     TIMEOUT = "TIMEOUT"
     OVERSIZE = "OVERSIZE"
     UNDELIVERED = "UNDELIVERED"
+    TRUNCATED = "TRUNCATED"
     CRASHED = "CRASHED"
     UNSPAWNABLE = "UNSPAWNABLE"
 
@@ -97,6 +98,7 @@ def invoke(
     out, err = bytearray(), bytearray()
     oversize = threading.Event()
     undelivered = threading.Event()
+    truncated = threading.Event()
 
     def feed() -> None:
         try:
@@ -108,7 +110,7 @@ def invoke(
             # content it never saw, and under E1 that must not read as OK.
             undelivered.set()
 
-    def drain(stream, sink: bytearray, cap: int) -> None:
+    def drain(stream, sink: bytearray, cap: int, *, protocol_channel: bool) -> None:
         try:
             while chunk := stream.read1(_CHUNK):
                 room = cap - len(sink)
@@ -119,12 +121,27 @@ def invoke(
                     return
                 sink += chunk
         except OSError:
-            pass
+            # Bytes lost on stdout mean the response is incomplete, and an
+            # incomplete response must not read as success. On stderr it only
+            # costs diagnostics, and refusing content over a lost log line
+            # would block chunks for no security reason.
+            if protocol_channel:
+                truncated.set()
 
     workers = [
         threading.Thread(target=feed, daemon=True),
-        threading.Thread(target=drain, args=(proc.stdout, out, max_output), daemon=True),
-        threading.Thread(target=drain, args=(proc.stderr, err, max_output), daemon=True),
+        threading.Thread(
+            target=drain,
+            args=(proc.stdout, out, max_output),
+            kwargs={"protocol_channel": True},
+            daemon=True,
+        ),
+        threading.Thread(
+            target=drain,
+            args=(proc.stderr, err, max_output),
+            kwargs={"protocol_channel": False},
+            daemon=True,
+        ),
     ]
     for worker in workers:
         worker.start()
@@ -146,6 +163,16 @@ def invoke(
     for worker in workers:
         worker.join(timeout=1.0)
 
+    if not any(worker.is_alive() for worker in workers):
+        # Close our ends rather than waiting for the Popen to be collected. A
+        # stalled worker still holds a stream, so leave those to the collector
+        # instead of closing a file another thread is reading.
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            try:
+                stream.close()
+            except OSError:
+                pass
+
     if oversize.is_set():
         outcome = Outcome.OVERSIZE
     elif timed_out:
@@ -154,6 +181,8 @@ def invoke(
         outcome = Outcome.CRASHED
     elif undelivered.is_set():
         outcome = Outcome.UNDELIVERED
+    elif truncated.is_set():
+        outcome = Outcome.TRUNCATED
     else:
         outcome = Outcome.OK
 

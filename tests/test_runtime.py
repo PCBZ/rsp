@@ -11,6 +11,7 @@ import time
 
 import pytest
 
+from rsp import runtime
 from rsp.runtime import Invocation, Outcome, invoke
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
@@ -145,6 +146,65 @@ def test_descendants_die_even_when_the_wrapper_exits_cleanly() -> None:
             return
         time.sleep(0.05)
     pytest.fail(f"grandchild {grandchild} outlived the call ({time.monotonic() - started:.1f}s)")
+
+
+class _FailingStream:
+    """A pipe that dies mid-read. Hard to provoke with a real plugin, easy to
+    hand to the drain loop."""
+
+    def __init__(self, chunks: list[bytes], then: Exception | None) -> None:
+        self._chunks, self._then = list(chunks), then
+
+    def read1(self, _n: int) -> bytes:
+        if self._chunks:
+            return self._chunks.pop(0)
+        if self._then:
+            raise self._then
+        return b""
+
+    def close(self) -> None:
+        pass
+
+
+class _FakeProc:
+    def __init__(self, stdout, stderr, returncode: int = 0) -> None:
+        self.pid, self.returncode = 999999, returncode
+        self.stdout, self.stderr = stdout, stderr
+        self.stdin = _FailingStream([], None)
+        self.stdin.write = lambda data: len(data)  # type: ignore[method-assign]
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self.returncode
+
+
+def test_stdout_read_failure_is_truncated(monkeypatch) -> None:
+    """Losing bytes on the protocol channel must not read as success."""
+    proc = _FakeProc(
+        stdout=_FailingStream([b'{"verdict": "ALL'], OSError("input/output error")),
+        stderr=_FailingStream([], None),
+    )
+    monkeypatch.setattr(runtime, "_kill_group", lambda pgid: None)
+    monkeypatch.setattr(runtime.subprocess, "Popen", lambda *a, **k: proc)
+
+    result = invoke(["anything"], b"{}", timeout=5.0)
+    assert result.outcome is Outcome.TRUNCATED
+    assert result.exit_code == 0  # a clean exit did not make a partial read OK
+    assert result.stdout == b'{"verdict": "ALL'
+
+
+def test_stderr_read_failure_does_not_block(monkeypatch) -> None:
+    """Diagnostics are not the protocol channel. A lost log line is not a
+    reason to reject content."""
+    proc = _FakeProc(
+        stdout=_FailingStream([b'{"verdict": "ALLOW"}'], None),
+        stderr=_FailingStream([b"warming up"], OSError("input/output error")),
+    )
+    monkeypatch.setattr(runtime, "_kill_group", lambda pgid: None)
+    monkeypatch.setattr(runtime.subprocess, "Popen", lambda *a, **k: proc)
+
+    result = invoke(["anything"], b"{}", timeout=5.0)
+    assert result.outcome is Outcome.OK
+    assert result.stdout == b'{"verdict": "ALLOW"}'
 
 
 def test_invoke_never_raises() -> None:
