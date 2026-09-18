@@ -69,6 +69,12 @@ reviews:
       enabled: false
 
   pre_merge_checks:
+    # AGENTS.md says docstring wording is not review material; a coverage
+    # threshold contradicts that, and it counts overridden methods like
+    # __call__ and model_post_init against us.
+    docstrings:
+      mode: 'off'
+
     custom_checks:
       - name: 'Fail closed'
         mode: 'warning'
