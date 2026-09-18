@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from rsp.runtime import DEFAULT_MAX_OUTPUT, Invocation, Outcome, invoke
+from rsp.runtime import Invocation, Outcome, invoke
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
@@ -50,12 +50,15 @@ def test_flood_is_capped() -> None:
     flood = script("import sys\nwhile True: sys.stdout.buffer.write(b'x' * 65536)")
     result = invoke(flood, b"{}", timeout=10.0, max_output=1 << 16)
     assert result.outcome is Outcome.OVERSIZE
-    assert len(result.stdout) < DEFAULT_MAX_OUTPUT  # bounded, not swallowed whole
+    assert len(result.stdout) <= 1 << 16  # the cap is the cap, not the cap plus a chunk
 
 
-def test_plugin_that_never_reads_stdin_does_not_deadlock() -> None:
+def test_partial_delivery_is_not_ok() -> None:
+    """A plugin that stopped reading never saw the whole request, so its
+    verdict is about content it does not have. Not a deadlock, and not OK."""
     result = invoke(script("print('{}')"), b"x" * (1 << 20), timeout=5.0)
-    assert result.outcome is Outcome.OK  # writer thread absorbed the broken pipe
+    assert result.outcome is Outcome.UNDELIVERED
+    assert result.duration < 5.0
 
 
 def test_timeout_kills_the_whole_process_group() -> None:
@@ -92,6 +95,29 @@ def _child_count() -> int:
         ["ps", "-o", "stat=", "-g", str(os.getpid())], capture_output=True, text=True, check=False
     ).stdout
     return sum(1 for line in out.splitlines() if "Z" in line)
+
+
+def test_descendants_die_even_when_the_wrapper_exits_cleanly() -> None:
+    """The dangerous case is not the hang — it is the wrapper that returns 0
+    having left the tool it spawned running and holding the pipe."""
+    spawner = script(
+        "import subprocess, sys\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+        "print(child.pid, flush=True)\n"
+    )
+    started = time.monotonic()
+    result = invoke(spawner, b"{}", timeout=10.0)
+    assert result.duration < 5.0  # did not wait on the grandchild's pipe
+
+    grandchild = int(result.stdout.split()[0])
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild, 0)
+        except (ProcessLookupError, PermissionError):
+            return
+        time.sleep(0.05)
+    pytest.fail(f"grandchild {grandchild} outlived the call ({time.monotonic() - started:.1f}s)")
 
 
 def test_invoke_never_raises() -> None:

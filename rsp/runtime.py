@@ -29,6 +29,7 @@ class Outcome(enum.Enum):
     OK = "OK"
     TIMEOUT = "TIMEOUT"
     OVERSIZE = "OVERSIZE"
+    UNDELIVERED = "UNDELIVERED"
     CRASHED = "CRASHED"
     UNSPAWNABLE = "UNSPAWNABLE"
 
@@ -46,18 +47,23 @@ class Invocation:
         return self.outcome is Outcome.OK
 
 
-def _kill_group(proc: subprocess.Popen) -> None:
+def _kill_group(pgid: int) -> None:
     """Kill the plugin and anything it spawned.
 
     A plugin is usually a wrapper — rsp-gitleaks runs the gitleaks binary — so
     killing only the direct child leaves the grandchild holding the CPU and the
     pipe. The process gets its own session at spawn time precisely so the whole
     group can go at once.
+
+    Takes the group id rather than the process, because the group outlives the
+    process: once the direct child has been reaped, os.getpgid() raises and
+    there is nothing left to ask. Under start_new_session the child leads its
+    own group, so the id is its pid, recorded before anything can exit.
     """
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        os.killpg(pgid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError, OSError):
-        proc.kill()
+        pass
 
 
 def invoke(
@@ -82,24 +88,32 @@ def invoke(
     except OSError as exc:
         return Invocation(Outcome.UNSPAWNABLE, b"", str(exc).encode(), None, 0.0)
 
+    pgid = proc.pid  # it leads its own group; record it before anything exits
+
     out, err = bytearray(), bytearray()
     oversize = threading.Event()
+    undelivered = threading.Event()
 
     def feed() -> None:
         try:
             proc.stdin.write(payload)
             proc.stdin.close()
         except OSError:
-            pass  # plugin exited before reading; its exit status is the signal
+            # The plugin stopped reading before it had the whole request, so it
+            # cannot have parsed one. Whatever it printed is a verdict about
+            # content it never saw, and under E1 that must not read as OK.
+            undelivered.set()
 
     def drain(stream, sink: bytearray, cap: int) -> None:
         try:
             while chunk := stream.read1(_CHUNK):
-                sink += chunk
-                if len(sink) > cap:
+                room = cap - len(sink)
+                if len(chunk) >= room:
+                    sink += chunk[:room]
                     oversize.set()
-                    _kill_group(proc)
+                    _kill_group(pgid)
                     return
+                sink += chunk
         except OSError:
             pass
 
@@ -116,8 +130,14 @@ def invoke(
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        _kill_group(proc)
+        _kill_group(pgid)
         proc.wait()  # reap, so a timeout leaves no zombie
+
+    # Also after a clean exit. A wrapper can exit zero having left the tool it
+    # spawned running, and that grandchild holds the pipe open — the drain
+    # threads would block until it decided to finish. One call, one process
+    # group, and the group ends when the call does (Q6).
+    _kill_group(pgid)
 
     for worker in workers:
         worker.join(timeout=1.0)
@@ -128,6 +148,8 @@ def invoke(
         outcome = Outcome.TIMEOUT
     elif proc.returncode != 0:
         outcome = Outcome.CRASHED
+    elif undelivered.is_set():
+        outcome = Outcome.UNDELIVERED
     else:
         outcome = Outcome.OK
 
