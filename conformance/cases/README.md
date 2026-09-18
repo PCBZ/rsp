@@ -19,3 +19,19 @@ any clause still lacking evidence at freeze time.
 reference plugin, whose verdicts are selected by content markers. Cases that any
 plugin must pass — framing, stdout discipline, span validity — become
 plugin-agnostic in #19.
+
+## Two kinds of case, one of which does not exist yet
+
+Every case here is a **plugin case**: a request, and the response a conforming
+plugin must give. That shape cannot express a requirement on the host — H4
+(a declaration may lower a host limit, never raise one), S3 (validate a span
+before using it), K1 (blocked content is never embedded), E1–E3 (a failure
+becomes BLOCK). No plugin response settles any of them.
+
+Those need a **host case**: a declaration or a plugin response as input, and
+the host behaviour required in return. Deferred to #19 rather than guessed at
+here, because the shape should be designed against a host that exists.
+
+Until then, `SPEC.md` §10 lists host-side clauses as uncovered. That is the
+honest state, not an oversight: a clause tested only by our own unit tests has
+been verified for this implementation and for no other.
