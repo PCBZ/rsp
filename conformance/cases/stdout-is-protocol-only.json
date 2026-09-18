@@ -1,0 +1,8 @@
+{
+  "name": "stdout-is-protocol-only",
+  "clause": "T2",
+  "plugin": "rsp-echo",
+  "note": "rsp-echo writes a diagnostic line on every call; it must not appear on stdout.",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "just some notes" },
+  "expect": { "response": { "verdict": "ALLOW" }, "stdout_objects": 1 }
+}

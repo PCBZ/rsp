@@ -1,0 +1,15 @@
+{
+  "name": "spans-are-utf8-bytes",
+  "clause": "S1",
+  "plugin": "rsp-echo",
+  "note": "In this content 'secret' begins at character 3 and byte 7. A plugin reporting 3 fails this case, and a host slicing bytes with 3 splits the first character.",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "密钥 secret" },
+  "expect": {
+    "response": {
+      "verdict": "REDACT",
+      "spans": [{ "start": 7, "end": 13, "type": "echo-test" }],
+      "replacement": "[REDACTED:echo-test]",
+      "severity": "medium"
+    }
+  }
+}
