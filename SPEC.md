@@ -64,6 +64,9 @@ backed by a model must be able to say no. Everything else is speculative and is
 left out until a plugin needs it.*
 
 **H3.** The host MUST NOT invoke a plugin on a hook it did not declare.
+*Rationale: otherwise `hooks` is decoration. A plugin that declares only
+`on_chunk` and is handed a retrieval hit has no way to refuse it, and its
+verdict for that hook means nothing.*
 
 ---
 
@@ -126,10 +129,16 @@ Fixtures: `verdict-allow`, `verdict-flag`, `verdict-block`
 Fixture: `verdict-allow`
 
 **V3.** `REDACT` MUST carry `spans` and `replacement`.
+*Rationale: a redaction with neither is indistinguishable from `FLAG`, and the
+host cannot act on it.*
 Fixture: `verdict-redact`
 
 **V4.** `FLAG` and `BLOCK` SHOULD carry `reason`; any verdict MAY carry
 `severity`.
+*Rationale: SHOULD, not MUST — an operator facing a blocked chunk needs to know
+why, but a plugin with nothing useful to say should not be forced to invent a
+string. `severity` stays optional because composition rules that would consume
+it are not specified yet (Q1).*
 
 ---
 
@@ -146,6 +155,9 @@ length, which removes an off-by-one from every implementation.*
 Fixture: `spans-are-utf8-bytes`
 
 **S2.** A plugin MUST report every occurrence it finds, not only the first.
+*Rationale: the host redacts what it is told about. A plugin that stops at the
+first match leaves the rest of the secrets in the chunk, and nothing downstream
+can tell that it did.*
 Fixture: `spans-multiple-occurrences`
 
 **S3.** The host MUST validate every span before using it: within `content`,
@@ -195,3 +207,25 @@ and will be settled by a fixture, not by prose.
 Verdict composition across several plugins — strictest wins, `BLOCK`
 short-circuits — is **not specified here**. No call site exercises it yet; it
 arrives with the runtime (#7).
+
+---
+
+## 10. Fixture coverage
+
+Eight of the normative clauses have a conformance case. The rest do not, and
+this section exists so that the gap is a stated position rather than an
+oversight.
+
+| Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
+|---|---|
+| **Not yet** | T1, H2, H3, K1, K2, Q1, S3, S4, E1, E2, V4 |
+
+Everything uncovered is a requirement on the **host**, and nothing can exercise
+it until the runtime exists (#4–#7) and the kit runs standalone (#19). A
+plugin-side case cannot prove that blocked content never reached storage, that
+an invalid span was rejected, or that a crash became `BLOCK`.
+
+*Rationale for stating it: an implementer needs to know which clauses have been
+tested and which are still assertions. At freeze (#20), a clause still without
+evidence is deleted rather than shipped — a dead clause misleads, and an
+implementer misled by a security spec ships an insecure host.*
