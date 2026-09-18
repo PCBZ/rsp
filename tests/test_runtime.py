@@ -14,6 +14,7 @@ import pytest
 from rsp.runtime import Invocation, Outcome, invoke
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
+CAP = 4096
 
 
 def script(body: str) -> list[str]:
@@ -50,19 +51,20 @@ def test_malformed_command_is_unspawnable(command) -> None:
 
 
 def test_output_exactly_at_the_cap_is_not_oversize() -> None:
-    cap = 4096
-    exact = script(f"import sys; sys.stdout.buffer.write(b'x' * {cap})")
-    result = invoke(exact, b"{}", timeout=5.0, max_output=cap)
+    # Reads stdin first, like a real plugin. A script that exits without
+    # reading races feed(): the write usually lands in the pipe buffer, but
+    # when it loses, the outcome is UNDELIVERED and the test flakes.
+    exact = script(f"import sys; sys.stdin.read(); sys.stdout.buffer.write(b'x' * {CAP})")
+    result = invoke(exact, b"{}", timeout=5.0, max_output=CAP)
     assert result.outcome is Outcome.OK
-    assert len(result.stdout) == cap
+    assert len(result.stdout) == CAP
 
 
 def test_one_byte_over_the_cap_is_oversize() -> None:
-    cap = 4096
-    over = script(f"import sys; sys.stdout.buffer.write(b'x' * {cap + 1})")
-    result = invoke(over, b"{}", timeout=5.0, max_output=cap)
+    over = script(f"import sys; sys.stdin.read(); sys.stdout.buffer.write(b'x' * {CAP + 1})")
+    result = invoke(over, b"{}", timeout=5.0, max_output=CAP)
     assert result.outcome is Outcome.OVERSIZE
-    assert len(result.stdout) == cap
+    assert len(result.stdout) == CAP  # truncated to the cap, not one past it
 
 
 def test_hang_times_out_promptly() -> None:
