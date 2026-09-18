@@ -175,12 +175,21 @@ get them wrong; `rsp/guards.py` receives finished content instead.*
 
 ## 8. Errors
 
-**E1.** A plugin that crashes, times out, exceeds an output limit, or returns
-unparseable or invalid output MUST be treated as `BLOCK`, unless that plugin's
-configuration says otherwise.
+**E1.** A plugin that crashes, times out, exceeds an output limit, fails to
+receive the whole request, or returns incomplete, unparseable, or invalid output
+MUST be treated as `BLOCK`, unless that plugin's configuration says otherwise.
 *Rationale: failing open makes the failure invisible — a misconfigured plugin
 looks exactly like a clean corpus. An over-blocked chunk can be re-indexed; an
 embedded credential cannot be un-embedded.*
+
+**E3.** An error is anything that makes a response untrustworthy. A failure that
+costs only diagnostics — an unreadable or truncated stderr — is NOT an error,
+and MUST NOT block content on its own.
+*Rationale: stdout is the protocol channel and stderr is not (T2), so they fail
+differently. Losing bytes on stdout means the host does not have the response it
+is about to act on. Losing a log line costs a debugging aid. Treating both as
+`BLOCK` turns a logging hiccup into dropped data, which buys no security and
+spends real content.*
 
 **E2.** `Runtime.evaluate` MUST NOT raise. Every failure becomes a verdict, and
 by E1 that verdict is `BLOCK`.

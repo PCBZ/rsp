@@ -82,8 +82,12 @@ reviews:
           If this PR adds or changes an error path in rsp/ — an except handler, a
           timeout branch, a parse failure, a size cap — verify it results in
           BLOCK unless an explicit per-plugin on_error setting says otherwise.
-          Report a failure naming the file and line if any error path results in
+          Report a failure naming the file and line if such a path results in
           ALLOW, skips the plugin silently, or lets the exception escape.
+          Scope: an error path is one that makes a response untrustworthy, per
+          SPEC.md E3. Failures that cost only diagnostics — an unreadable or
+          truncated stderr — are not error paths, and code that lets them pass
+          is correct, not a finding.
 
       - name: 'MUST has a fixture'
         mode: 'warning'
