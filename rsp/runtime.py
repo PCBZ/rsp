@@ -48,6 +48,7 @@ class Outcome(enum.Enum):
     UNSPAWNABLE = "UNSPAWNABLE"
     EMPTY = "EMPTY"
     MALFORMED = "MALFORMED"
+    UNENCODABLE = "UNENCODABLE"
 
 
 @dataclass(frozen=True)
@@ -216,8 +217,25 @@ def encode(request: Mapping[str, Any]) -> bytes:
     ensure_ascii is off so that content stays UTF-8 rather than u-escapes.
     Escaped, the bytes a plugin receives would no longer line up with the byte
     offsets it is expected to report (S1).
+
+    allow_nan is off because NaN and Infinity are not JSON (RFC 8259) — Python
+    writes them anyway. A host is the one who would produce them: a retriever
+    score of NaN reaches metadata, and the request goes out as something a Go
+    or Rust plugin rejects, making a working plugin look broken.
+
+    Raises ValueError for a request that cannot be represented; call() turns
+    that into an outcome, since only call() promises never to raise.
     """
-    return json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
+
+
+def _reject_constant(token: str) -> Any:
+    raise ValueError(f"{token} is not JSON")
+
+
+_DECODER = json.JSONDecoder(parse_constant=_reject_constant)
 
 
 def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
@@ -237,8 +255,12 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
         return Outcome.EMPTY, None
 
     try:
-        payload, end = json.JSONDecoder().raw_decode(text.lstrip())
-    except json.JSONDecodeError:
+        payload, end = _DECODER.raw_decode(text.lstrip())
+    except (json.JSONDecodeError, ValueError):
+        # ValueError covers the NaN/Infinity tokens rejected below: Python
+        # accepts them by default, so a lenient host would take a response no
+        # other implementation would, and the divergence would surface as
+        # "works here, fails there".
         return Outcome.MALFORMED, None
 
     if text.lstrip()[end:].strip():
@@ -253,7 +275,7 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
 class Reply:
     outcome: Outcome
     payload: dict[str, Any] | None
-    invocation: Invocation
+    invocation: Invocation | None  # None when no process was ever started
 
     @property
     def ok(self) -> bool:
@@ -273,7 +295,15 @@ def call(
     process that ended cleanly has its output parsed, because output from a
     killed or truncated call is a fragment whether or not it happens to parse.
     """
-    invocation = invoke(command, encode(request), timeout=timeout, max_output=max_output)
+    try:
+        payload_bytes = encode(request)
+    except (ValueError, TypeError):
+        # The host built a request that is not JSON. No plugin is at fault and
+        # none was run, but there is no verdict either, so this is an error
+        # like any other (E3).
+        return Reply(Outcome.UNENCODABLE, None, None)
+
+    invocation = invoke(command, payload_bytes, timeout=timeout, max_output=max_output)
     if not invocation.ok:
         return Reply(invocation.outcome, None, invocation)
 

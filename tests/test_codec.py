@@ -94,3 +94,28 @@ def test_round_trip_matches_the_conformance_case() -> None:
     reply = call(ECHO, case["request"])
     assert reply.ok
     assert reply.payload == case["expect"]["response"]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_values_never_reach_the_wire(value: float) -> None:
+    """NaN and Infinity are not JSON (RFC 8259); Python writes them anyway.
+    A retriever score of NaN would otherwise go out as something a strict
+    plugin rejects, making a working plugin look broken."""
+    reply = call(ECHO, {"hook": "on_retrieve", "content": "x", "metadata": {"score": value}})
+    assert reply.outcome is Outcome.UNENCODABLE
+    assert reply.payload is None
+    assert reply.invocation is None  # nothing was spawned
+
+
+@pytest.mark.parametrize("raw", [b'{"n":NaN}', b'{"n":Infinity}', b'{"n":-Infinity}'])
+def test_non_finite_values_are_rejected_on_the_way_in(raw: bytes) -> None:
+    """Accepting these would make this host take responses that a Go or Rust
+    host rejects — the divergence surfaces later as "works here, fails there"."""
+    outcome, payload = decode(raw)
+    assert outcome is Outcome.MALFORMED
+    assert payload is None
+
+
+def test_finite_floats_still_work() -> None:
+    reply = call(ECHO, {"hook": "on_retrieve", "content": "x", "metadata": {"score": 0.87}})
+    assert reply.ok
