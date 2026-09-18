@@ -85,7 +85,11 @@ def invoke(
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
-    except OSError as exc:
+    except (OSError, ValueError, TypeError, IndexError) as exc:
+        # OSError covers a missing binary or a bad permission, but `command`
+        # comes from user config: an empty list raises IndexError and a null
+        # entry raises TypeError. This function never raises (E2), so a
+        # misconfigured plugin has to leave here as a verdict, not a traceback.
         return Invocation(Outcome.UNSPAWNABLE, b"", str(exc).encode(), None, 0.0)
 
     pgid = proc.pid  # it leads its own group; record it before anything exits
@@ -108,7 +112,7 @@ def invoke(
         try:
             while chunk := stream.read1(_CHUNK):
                 room = cap - len(sink)
-                if len(chunk) >= room:
+                if len(chunk) > room:
                     sink += chunk[:room]
                     oversize.set()
                     _kill_group(pgid)

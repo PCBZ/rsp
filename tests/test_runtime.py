@@ -40,6 +40,31 @@ def test_missing_binary_is_unspawnable() -> None:
     assert result.stdout == b""
 
 
+@pytest.mark.parametrize("command", [[], [None], [""], ["", "x"]])
+def test_malformed_command_is_unspawnable(command) -> None:
+    """`command` comes from rsp.yaml. An empty list raises IndexError and a
+    null entry raises TypeError, neither of which is an OSError."""
+    result = invoke(command, b"{}")
+    assert result.outcome is Outcome.UNSPAWNABLE
+    assert result.stderr  # the reason survives for the operator
+
+
+def test_output_exactly_at_the_cap_is_not_oversize() -> None:
+    cap = 4096
+    exact = script(f"import sys; sys.stdout.buffer.write(b'x' * {cap})")
+    result = invoke(exact, b"{}", timeout=5.0, max_output=cap)
+    assert result.outcome is Outcome.OK
+    assert len(result.stdout) == cap
+
+
+def test_one_byte_over_the_cap_is_oversize() -> None:
+    cap = 4096
+    over = script(f"import sys; sys.stdout.buffer.write(b'x' * {cap + 1})")
+    result = invoke(over, b"{}", timeout=5.0, max_output=cap)
+    assert result.outcome is Outcome.OVERSIZE
+    assert len(result.stdout) == cap
+
+
 def test_hang_times_out_promptly() -> None:
     result = invoke(script("import time; time.sleep(30)"), b"{}", timeout=0.5)
     assert result.outcome is Outcome.TIMEOUT
