@@ -30,7 +30,7 @@ from typing import Any
 
 RSP_VERSION = "0.1"
 DEFAULT_TIMEOUT = 5.0  # seconds, per call (Q4)
-DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout (Q7)
+DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout; exceeding it is an error (E1)
 _CHUNK = 65536
 
 
@@ -342,8 +342,8 @@ class Handshake:
 
         Declarations lower the limit; they never raise it. A plugin asking for
         more than the host allows would otherwise choose how much memory the
-        host spends on it, which is the attack the output cap exists to stop
-        (Q7) arriving through the front door instead.
+        host spends on it — the same attack the output limit in E1 exists to
+        stop, arriving through the front door instead.
         """
         return (
             host_limit if self.max_inline_bytes is None else min(self.max_inline_bytes, host_limit)

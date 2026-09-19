@@ -18,6 +18,7 @@ llamaindex = ["llama-index-core>=0.14,<0.15"]
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-cov>=5",
     "ruff>=0.6",
     "rsp[llamaindex]",
 ]
@@ -31,3 +32,14 @@ packages = ["rsp"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.coverage.run]
+source = ["rsp"]
+branch = true
+
+[tool.coverage.report]
+# Plugins are subprocesses and never imported, so coverage cannot see them,
+# and conformance/ is data. guards.py imports a Runtime that does not exist
+# yet — remove this line when #7 lands and it becomes importable.
+omit = ["*/guards.py"]
+exclude_lines = ["if TYPE_CHECKING:", "raise NotImplementedError"]

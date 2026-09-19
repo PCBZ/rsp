@@ -72,8 +72,9 @@ verdict for that hook means nothing.*
 `max_inline_bytes` above the host's own limit MUST be clamped to the host's.
 *Rationale: a declaration is a plugin's statement about itself, not a request
 for resources. A plugin that could raise the host's inline limit would choose
-how much memory the host spends on its behalf, which is the output-cap attack
-(Q7) arriving through the handshake instead of through stdout.*
+how much memory the host spends on its behalf — the same attack the output
+limit in E1 exists to stop, arriving through the handshake instead of through
+stdout.*
 
 ---
 
