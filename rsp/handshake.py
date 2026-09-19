@@ -1,4 +1,4 @@
-"""Handshake — issue #5.
+"""Handshake.
 
 Who a plugin says it is, validated (H1, H2). One invocation of its own rather
 than the opening message of a stream, because one call is one process (Q6).
@@ -18,12 +18,9 @@ REQUIRED_DECLARATION_FIELDS = ("rsp_version", "name", "version", "hooks")
 
 @dataclass(frozen=True)
 class Handshake:
-    """What a plugin says it is (H2).
-
-    Only what the host acts on. `hooks` decides what it is called with (H3),
-    `version` is part of a cache key (D4), `deterministic` decides whether
-    caching is legal at all, and `max_inline_bytes` is the plugin's own limit
-    on how much content it will take inline (D5).
+    """What a plugin says it is (H2). Only fields the host acts on: `hooks`
+    gates dispatch (H3), `version` keys the cache (D4), `deterministic` decides
+    whether caching is legal, `max_inline_bytes` caps inline content (D5).
     """
 
     rsp_version: str
@@ -37,12 +34,10 @@ class Handshake:
         return hook in self.hooks
 
     def inline_limit(self, host_limit: int) -> int:
-        """The smaller of what the plugin accepts and what the host offers.
+        """The smaller of what the plugin accepts and what the host offers (H4).
 
-        Declarations lower the limit; they never raise it. A plugin asking for
-        more than the host allows would otherwise choose how much memory the
-        host spends on it — the same attack the output limit in E1 exists to
-        stop, arriving through the front door instead.
+        Declarations lower a limit, never raise one: otherwise a plugin picks
+        how much memory the host spends on it.
         """
         return (
             host_limit if self.max_inline_bytes is None else min(self.max_inline_bytes, host_limit)
@@ -91,10 +86,9 @@ def handshake(
 ) -> tuple[Outcome, Handshake | None]:
     """Ask a plugin who it is, before sending it any content (H1).
 
-    Its own invocation rather than the first message of a stream, because one
-    call is one process in v0.1 (Q6). The cost is an extra spawn per plugin per
-    run, which caching cannot remove: the cache key contains the plugin version,
-    and the version is what the handshake is for (#13).
+    Its own invocation, since one call is one process (Q6). Costs a spawn per
+    plugin per run that caching cannot remove — the cache key needs the version
+    this call exists to fetch.
     """
     reply = call(
         command,

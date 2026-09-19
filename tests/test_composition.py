@@ -1,4 +1,4 @@
-"""Verdict composition — #7. Dispatch, compose, and decide (D9, E1, H3, S5)."""
+"""Verdict composition: dispatch, compose, and decide (D9, E1, H3, S5)."""
 
 from __future__ import annotations
 

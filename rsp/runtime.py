@@ -1,4 +1,4 @@
-"""Verdict composition — issue #7.
+"""Verdict composition.
 
 The deciding layer. rsp.process knows how a process ended, rsp.codec knows what
 it said, rsp.spans knows what to do with offsets — and none of them knows what
@@ -21,10 +21,9 @@ from rsp.spans import Severity, Span, redact, valid_span
 class Verdict(enum.StrEnum):
     """The four outcomes a plugin may return (V1).
 
-    A StrEnum, not an IntEnum: these values go on the wire, and the ordering
-    below is a policy (D9, strictest wins) rather than a property of the words.
-    Keeping the rank in a table means the policy can be read — and argued with —
-    instead of being implied by which number someone assigned.
+    StrEnum because these go on the wire. The ranking lives in a table rather
+    than in the values, because strictest-wins is a policy (D9) that should be
+    readable, not implied by which number someone assigned.
     """
 
     ALLOW = "ALLOW"
@@ -47,9 +46,8 @@ class OnError(enum.StrEnum):
 class ConfigError(Exception):
     """Raised at construction, never during evaluation.
 
-    A misconfiguration should stop the run while someone is watching. The
-    alternative — degrading quietly into an index nobody is guarding — looks
-    exactly like success (thread on #24).
+    Degrading quietly into an index nobody is guarding looks exactly like
+    success, so a misconfiguration stops the run while someone is watching.
     """
 
 
@@ -67,9 +65,8 @@ class Result:
     """What the host acts on.
 
     `content` is already redacted (S4): the host never sees a span. `reasons`
-    are for the operator's log and deliberately not in `provenance`, which is
-    written onto a stored node — a plugin's free text could quote the very
-    bytes it matched, and Q8 keeps matched content out of the index.
+    are for the operator's log, kept out of `provenance` because that is stored
+    on the node and a plugin's free text can quote what it matched (Q8).
     """
 
     verdict: Verdict
@@ -85,9 +82,8 @@ class Result:
 def _verdict_of(payload: Mapping[str, Any]) -> Verdict | None:
     """The declared verdict, or None if it is not one (V1).
 
-    isinstance before lookup: a plugin may return any JSON, and `["BLOCK"] in
-    set(Verdict)` raises rather than answering. Everything a plugin sends is a
-    claim about its own output, checked before it is used.
+    isinstance before lookup: `["BLOCK"] in set(Verdict)` raises rather than
+    answering, and a plugin may return any JSON at all.
     """
     declared = payload.get("verdict")
     if not isinstance(declared, str):
@@ -101,10 +97,9 @@ def _verdict_of(payload: Mapping[str, Any]) -> Verdict | None:
 def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Span] | None:
     """Every span in a REDACT response, or None if any of it is unusable.
 
-    Validation is per response rather than at redaction time so the failure can
-    be attributed: the host knows which plugin sent it and can apply that
-    plugin's on_error. It also enforces V3 — a REDACT with no spans or no
-    replacement is not a REDACT.
+    Per response rather than at redaction time, so a bad span is attributable
+    to the plugin that sent it and routed through that plugin's on_error. Also
+    enforces V3: a REDACT without spans or replacement is not a REDACT.
     """
     raw_spans = payload.get("spans")
     replacement = payload.get("replacement")
@@ -132,11 +127,10 @@ def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Sp
 
 
 class Runtime:
-    """Dispatches a hook across plugins and composes one verdict (#7).
+    """Dispatches a hook across plugins and composes one verdict.
 
-    Handshakes eagerly: a plugin that cannot introduce itself is a
-    configuration problem, and those are raised while someone is watching
-    rather than turned into a silently unguarded index.
+    Handshakes eagerly, so a plugin that cannot introduce itself fails at
+    construction rather than mid-ingest.
     """
 
     def __init__(self, plugins: Sequence[Plugin]) -> None:
@@ -156,10 +150,9 @@ class Runtime:
             self.declarations[plugin.name] = declaration
 
     def for_hook(self, hook: str) -> list[Plugin]:
-        """Only plugins that declared this hook (H3).
-
-        A plugin handed a hook it never declared cannot refuse it, so whatever
-        verdict it returns is about a situation it was not written for.
+        """Only plugins that declared this hook (H3): one handed an undeclared
+        hook cannot refuse it, so its verdict is about a case it never planned
+        for.
         """
         return [p for p in self.plugins if self.declarations[p.name].supports(hook)]
 
@@ -234,14 +227,11 @@ class Runtime:
     def _failed(plugin: Plugin, detail: str, reasons: list[str]) -> bool:
         """Record a plugin failure and say whether it blocks the chunk.
 
-        on_error covers every failure of that plugin, not only the ones that
-        happen to the process: a plugin that returns an unusable response has
-        failed as surely as one that crashed, and an operator who set
-        on_error=allow for a metrics collector meant both.
+        on_error covers every failure of that plugin, not only process ones: an
+        unusable response is a failure as surely as a crash.
 
-        ALLOW and SKIP have the same effect on composition today — neither
-        contributes a verdict. They are kept apart because the intent differs,
-        and because provenance may come to distinguish them.
+        ALLOW and SKIP behave identically today — neither contributes a verdict
+        — and are kept apart because the intent differs.
         """
         suffix = "" if plugin.on_error is OnError.BLOCK else f" (on_error={plugin.on_error})"
         reasons.append(f"{plugin.name}: {detail}{suffix}")

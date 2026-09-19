@@ -1,6 +1,6 @@
-"""Span coalescing and redaction — #21, settling Q1 and Q2.
+"""Span coalescing and redaction — S5, S6, S7.
 
-The table mirrors the shape a host conformance case will take (#31): content
+The table mirrors the shape a host conformance case will take: content
 and spans in, resulting content out. Lifting these into data should be
 mechanical once the kit can drive a host.
 """

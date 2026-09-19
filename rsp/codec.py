@@ -1,4 +1,4 @@
-"""Wire codec — issue #6.
+"""Wire codec.
 
 A request mapping in, a parsed response out, or an outcome explaining why there
 is none. Sits above the process layer and below plugin identity: chaos testing
@@ -19,19 +19,15 @@ RSP_VERSION = "0.1"
 
 
 def encode(request: Mapping[str, Any]) -> bytes:
-    """A request on the wire: compact UTF-8 JSON, one object.
+    """One request as compact UTF-8 JSON. Raises ValueError if it cannot be.
 
-    ensure_ascii is off so that content stays UTF-8 rather than u-escapes.
-    Escaped, the bytes a plugin receives would no longer line up with the byte
-    offsets it is expected to report (S1).
+    Both flags are load-bearing. `ensure_ascii` off keeps content as UTF-8, so
+    the bytes a plugin counts are the bytes we sent (S1). `allow_nan` off stops
+    Python emitting NaN and Infinity, which it does by default and which no
+    other language's parser accepts.
 
-    allow_nan is off because NaN and Infinity are not JSON (RFC 8259) — Python
-    writes them anyway. A host is the one who would produce them: a retriever
-    score of NaN reaches metadata, and the request goes out as something a Go
-    or Rust plugin rejects, making a working plugin look broken.
-
-    Raises ValueError for a request that cannot be represented; call() turns
-    that into an outcome, since only call() promises never to raise.
+    Only call() promises never to raise, so it is call() that turns the
+    ValueError into an outcome.
     """
     return json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
         "utf-8"
@@ -39,6 +35,7 @@ def encode(request: Mapping[str, Any]) -> bytes:
 
 
 def _reject_constant(token: str) -> Any:
+    """NaN and Infinity are not JSON (RFC 8259); Python's parser takes them."""
     raise ValueError(f"{token} is not JSON")
 
 
@@ -46,12 +43,11 @@ _DECODER = json.JSONDecoder(parse_constant=_reject_constant)
 
 
 def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
-    """Exactly one JSON object, and nothing else (T2, Q7).
+    """Exactly one JSON object and nothing else, or why not (T2).
 
-    Not "the first object we can find": a plugin that prints a debug line
-    before its response has put diagnostics on the protocol channel, and the
-    host cannot tell that apart from a response it should act on. Rejecting is
-    the only reading that keeps stdout meaningful.
+    Not "the first object that parses": anything else on stdout means the
+    plugin treats the protocol channel as a log, and the host cannot tell a
+    stray line from a response.
     """
     try:
         text = raw.decode("utf-8")
@@ -64,11 +60,7 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
     try:
         payload, end = _DECODER.raw_decode(text.lstrip())
     except (json.JSONDecodeError, ValueError):
-        # ValueError covers the NaN/Infinity tokens rejected below: Python
-        # accepts them by default, so a lenient host would take a response no
-        # other implementation would, and the divergence would surface as
-        # "works here, fails there".
-        return Outcome.MALFORMED, None
+        return Outcome.MALFORMED, None  # ValueError: the NaN tokens _DECODER rejects
 
     if text.lstrip()[end:].strip():
         return Outcome.MALFORMED, None  # a second object, or trailing noise

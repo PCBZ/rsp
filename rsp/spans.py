@@ -1,4 +1,4 @@
-"""Spans and redaction — issue #21.
+"""Spans and redaction.
 
 What a chunk looks like after every plugin has spoken. Knows about byte offsets
 and severities; knows nothing about verdicts or plugins.
@@ -14,10 +14,9 @@ from dataclasses import dataclass
 class Severity(enum.IntEnum):
     """The scale S6 compares. IntEnum because the comparison is the point.
 
-    Only a rank. The wire value stays a string on the Span: a plugin that
-    declares "catastrophic" ranks lowest (S7) but the operator should still see
-    the word it used, and normalising it away would hide a plugin that thinks
-    it is being more severe than the scale allows.
+    A rank only. The wire value stays a string on the Span, so a plugin that
+    declares "catastrophic" ranks lowest without the operator losing the word
+    it chose.
     """
 
     LOW = 0
@@ -29,9 +28,8 @@ class Severity(enum.IntEnum):
     def of(cls, wire: str | None) -> Severity:
         """Rank a declared severity. Unknown is lowest, never an error (S7, D8).
 
-        Exact match: "CRITICAL" is not "critical". Accepting case variants would
-        be this host taking something a stricter one rejects, which is the
-        leniency tracked in #29.
+        Case-sensitive: accepting "CRITICAL" would mean taking what a stricter
+        host refuses.
         """
         try:
             return cls[wire.upper()] if wire and wire.islower() else cls.LOW
@@ -41,11 +39,11 @@ class Severity(enum.IntEnum):
 
 @dataclass(frozen=True)
 class Span:
-    """A range one plugin wants masked, carried with what it takes to merge.
+    """A range one plugin wants masked, plus what merging it needs.
 
-    `replacement` and `severity` come from the response the span arrived in
-    (V3, V4); `order` is the plugin's position in the configured list, which is
-    what settles a tie without asking the clock.
+    `replacement` and `severity` belong to the response it arrived in (V3, V4).
+    `order` is the plugin's configured position, which settles ties in S6
+    without asking which plugin answered first.
     """
 
     start: int
@@ -61,12 +59,8 @@ class Span:
 
 
 def valid_span(span: Span, content: bytes) -> bool:
-    """S3. Plugins are untrusted, so a span is a claim until it is checked.
-
-    An unchecked span is a host crash waiting to happen: a range past the end
-    slices short in Python and raises elsewhere, and one that cuts a multi-byte
-    character raises on decode. Either way a plugin chose when the host fell
-    over.
+    """Whether a span can be applied: in range, ordered, and on a character
+    boundary (S3). Unchecked, it lets a plugin choose when the host crashes.
     """
     if span.start < 0 or span.end > len(content) or span.start > span.end:
         return False
@@ -79,13 +73,10 @@ def valid_span(span: Span, content: bytes) -> bool:
 def merge_spans(spans: Iterable[Span]) -> list[Span]:
     """Coalesce overlapping and adjacent ranges into one (S6).
 
-    Adjacent ranges merge too: two plugins finding neighbouring secrets should
-    produce one mask, not `[REDACTED][REDACTED]`, which tells a reader exactly
-    how the boundary fell.
-
-    The surviving replacement is the highest-severity contributor's, ties going
-    to the earlier plugin. Any rule other than a total order would make the
-    output depend on which plugin happened to answer first.
+    Adjacent too: `[REDACTED][REDACTED]` would show a reader where the boundary
+    fell. The surviving replacement is the highest-severity contributor's, ties
+    to the earlier plugin — a total order, so the result cannot depend on who
+    answered first.
     """
     ordered = sorted(spans, key=lambda s: (s.start, s.end))
     merged: list[Span] = []
@@ -100,11 +91,8 @@ def merge_spans(spans: Iterable[Span]) -> list[Span]:
                 type="+".join(sorted(types)) or None,
                 severity=winner.severity,
                 replacement=winner.replacement,
-                # The winner's order, not the earliest contributor's: this
-                # field exists to break the next tie, and the next tie is
-                # against whoever currently holds the replacement. Carrying the
-                # earliest order instead lets a later plugin keep a replacement
-                # that an earlier one should have taken.
+                # The winner's order, not the earliest: this breaks the *next*
+                # tie, which is against whoever holds the replacement now.
                 order=winner.order,
             )
         else:
@@ -115,14 +103,11 @@ def merge_spans(spans: Iterable[Span]) -> list[Span]:
 def redact(content: str, spans: Iterable[Span]) -> tuple[str, list[Span]]:
     """Apply every plugin's spans to the original content, once (S5).
 
-    Every plugin on a hook sees the same bytes, and masking happens after the
-    last one has answered. The alternative — handing plugin N+1 what plugin N
-    redacted — means each plugin reports offsets into a different string, and
-    the host has to map them back. One coordinate system costs duplicate
-    findings on the same bytes, which is what merging is for.
+    One coordinate system: all offsets address the bytes passed in, so a
+    replacement of a different length cannot shift a later range.
 
-    Invalid spans are dropped and returned, so the caller can treat the
-    response as a plugin error (S3, E1) rather than silently masking the wrong
+    Invalid spans are returned rather than skipped, so the caller can treat the
+    response as a plugin error (S3, E1) instead of silently masking the wrong
     bytes.
     """
     data = content.encode("utf-8")

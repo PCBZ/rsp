@@ -1,4 +1,4 @@
-"""Subprocess lifecycle — issue #4.
+"""Subprocess lifecycle.
 
 Start a plugin, feed it, drain it, reap it. Bytes in, bytes out, plus a
 classification of how the process ended. Knows nothing about JSON, and nothing
@@ -26,9 +26,8 @@ _CHUNK = 65536
 class Outcome(enum.StrEnum):
     """How a call ended. Everything but OK is an error under E1 and E3.
 
-    The first six describe the process; the last two describe what it said.
-    Kept in one enum because a caller asking "may I trust this response?" does
-    not care which half went wrong, while a caller writing a log line does.
+    One enum for both process and content failures: a caller asking "may I
+    trust this response?" does not care which half went wrong.
     """
 
     OK = "OK"
@@ -59,15 +58,12 @@ class Invocation:
 def _kill_group(pgid: int) -> None:
     """Kill the plugin and anything it spawned.
 
-    A plugin is usually a wrapper — rsp-gitleaks runs the gitleaks binary — so
-    killing only the direct child leaves the grandchild holding the CPU and the
-    pipe. The process gets its own session at spawn time precisely so the whole
-    group can go at once.
+    A plugin is usually a wrapper, so killing only the direct child leaves the
+    tool it started holding the pipe — which is why the child gets its own
+    session at spawn.
 
-    Takes the group id rather than the process, because the group outlives the
-    process: once the direct child has been reaped, os.getpgid() raises and
-    there is nothing left to ask. Under start_new_session the child leads its
-    own group, so the id is its pid, recorded before anything can exit.
+    Takes the group id, not the process: after the child is reaped
+    os.getpgid() raises, while the group may still have members.
     """
     try:
         os.killpg(pgid, signal.SIGKILL)
@@ -113,9 +109,8 @@ def invoke(
             proc.stdin.write(payload)
             proc.stdin.close()
         except OSError:
-            # The plugin stopped reading before it had the whole request, so it
-            # cannot have parsed one. Whatever it printed is a verdict about
-            # content it never saw, and under E1 that must not read as OK.
+            # It stopped reading before it had the whole request, so anything
+            # it printed is a verdict about content it never saw.
             undelivered.set()
 
     def drain(stream, sink: bytearray, cap: int, *, protocol_channel: bool) -> None:
@@ -129,10 +124,8 @@ def invoke(
                     return
                 sink += chunk
         except OSError:
-            # Bytes lost on stdout mean the response is incomplete, and an
-            # incomplete response must not read as success. On stderr it only
-            # costs diagnostics, and refusing content over a lost log line
-            # would block chunks for no security reason.
+            # Losing bytes on stdout means an incomplete response; on stderr it
+            # costs only diagnostics, which is no reason to reject content (E3).
             if protocol_channel:
                 truncated.set()
 
@@ -162,19 +155,17 @@ def invoke(
         _kill_group(pgid)
         proc.wait()  # reap, so a timeout leaves no zombie
 
-    # Also after a clean exit. A wrapper can exit zero having left the tool it
-    # spawned running, and that grandchild holds the pipe open — the drain
-    # threads would block until it decided to finish. One call, one process
-    # group, and the group ends when the call does (Q6).
+    # Also after a clean exit: a wrapper can return zero with the tool it
+    # started still holding the pipe. One call, one group, and the group ends
+    # when the call does (Q6).
     _kill_group(pgid)
 
     for worker in workers:
         worker.join(timeout=1.0)
 
     if not any(worker.is_alive() for worker in workers):
-        # Close our ends rather than waiting for the Popen to be collected. A
-        # stalled worker still holds a stream, so leave those to the collector
-        # instead of closing a file another thread is reading.
+        # Closing a file a stalled worker is still reading is the worse bug, so
+        # only close when every worker has finished.
         for stream in (proc.stdin, proc.stdout, proc.stderr):
             try:
                 stream.close()

@@ -1,5 +1,5 @@
-"""Lifecycle tests for #4. Plugins here are inline scripts — rsp-chaos (#9)
-replaces them with a real misbehaving plugin later."""
+"""Process lifecycle tests. Plugins here are inline scripts; a real
+misbehaving plugin replaces them once one exists."""
 
 from __future__ import annotations
 

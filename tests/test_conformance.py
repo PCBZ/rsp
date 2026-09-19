@@ -1,6 +1,6 @@
 """Every case in conformance/cases, run against the plugin it names.
 
-A stand-in for the standalone kit in #19, which has to run without the runtime
+A stand-in for the standalone kit, which has to run without the runtime
 source present — so nothing here imports rsp.
 """
 

@@ -1,4 +1,4 @@
-"""Codec tests for #6: one object on stdout, and nothing else."""
+"""Codec tests: one object on stdout, and nothing else (T2)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Handshake tests for #5 — H1, H2, H3, D8."""
+"""Handshake tests — H1, H2, H3, H4, D8."""
 
 from __future__ import annotations
 
