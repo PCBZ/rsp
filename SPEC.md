@@ -100,7 +100,7 @@ it (#23). `on_source` and `on_document` are reserved.
 
 ---
 
-## 5. Request
+## 5. Request (M)
 
 ```json
 { "rsp_version": "0.1",
@@ -109,10 +109,19 @@ it (#23). `on_source` and `on_document` are reserved.
   "metadata": { "source": "notes/aws.md", "node_id": "..." } }
 ```
 
-**Q1.** `content` MUST be a JSON string carrying the text to inspect.
-`metadata` is advisory: a plugin MAY use it and MUST NOT require it.
-*Rationale: a plugin that needs host-specific metadata only works with that
-host, which defeats the point.*
+**M1.** `content` MUST be a JSON string carrying the text to inspect.
+*Rationale: one field, one meaning. A plugin should not have to discover where
+the text is.*
+
+**M2.** `metadata` is advisory. A plugin MAY use it and MUST NOT require it: a
+request carrying no `metadata` MUST still produce a verdict.
+*Rationale: metadata is whatever the host happens to know — `file_path` and
+`node_id` are LlamaIndex's vocabulary. A plugin that needs them works with that
+host and no other, which defeats the point of a protocol. Split from M1 because
+this half can be tested and that half cannot: no plugin response proves the
+host sent a string, but a request without metadata proves the plugin does not
+need it.*
+Fixture: `metadata-is-advisory`
 
 ---
 
@@ -144,8 +153,9 @@ Fixture: `verdict-redact`
 `severity`.
 *Rationale: SHOULD, not MUST — an operator facing a blocked chunk needs to know
 why, but a plugin with nothing useful to say should not be forced to invent a
-string. `severity` stays optional because composition rules that would consume
-it are not specified yet (Q1).*
+string. `severity` stays optional because S7 ranks an absent value lowest, so a
+plugin that does not grade its findings still composes predictably under S6
+rather than having to guess at a level.*
 
 ---
 
@@ -177,6 +187,29 @@ the host with a decoding exception.*
 required to interpret them.
 *Rationale: every host implementation that touches offsets is another chance to
 get them wrong; `rsp/guards.py` receives finished content instead.*
+
+**S5.** Every plugin on a hook MUST receive the original content. Redaction
+happens once, after the last plugin has answered.
+*Rationale: settles Q2. The alternative — handing plugin N+1 what plugin N
+redacted — means each plugin reports offsets into a different string and the
+host must map them back, with a replacement of a different length shifting
+every later range. One coordinate system costs duplicate findings on the same
+bytes, which is what S6 is for.*
+
+**S6.** Overlapping or adjacent spans MUST coalesce into one range. The
+replacement used is that of the highest-severity contributing span; ties go to
+the earlier plugin in configured order.
+*Rationale: settles Q1. Adjacent ranges merge as well, because
+`[REDACTED][REDACTED]` tells a reader exactly where the boundary fell. The tie
+rule exists so that composition does not depend on which plugin answered first
+— any rule short of a total order makes the output non-deterministic.*
+
+**S7.** `severity` is one of `low`, `medium`, `high`, `critical`, in that order.
+An absent or unrecognized value ranks lowest.
+*Rationale: S6 compares severities, so they need an order. Unrecognized ranks
+lowest rather than erroring, because D8 requires ignoring what is not
+understood, and a plugin inventing a severity should not outrank one using the
+scale.*
 
 ---
 
@@ -213,8 +246,6 @@ and will be settled by a fixture, not by prose.
 
 | | |
 |---|---|
-| Q1 | Overlapping `REDACT` spans from different plugins |
-| Q2 | Whether plugin N+1 sees original or redacted content |
 | Q3 | Whether `on_retrieve` reports dropped items to the user |
 | Q4 | Timeout default |
 | Q6 | Spawn-per-call vs a persistent process, and what the handshake costs per ingest |
@@ -228,13 +259,13 @@ arrives with the runtime (#7).
 
 ## 10. Fixture coverage
 
-Eight of the normative clauses have a conformance case. The rest do not, and
+Nine of the normative clauses have a conformance case. The rest do not, and
 this section exists so that the gap is a stated position rather than an
 oversight.
 
-| Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
+| Covered | R1, T2, T3, H1, M2, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, H4, K1, K2, Q1, S3, S4, E1, E2, E3, V4 |
+| **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
 
 Everything uncovered is a requirement on the **host**, and nothing can exercise
 it until the runtime exists (#4–#7) and the kit runs standalone (#19). A
