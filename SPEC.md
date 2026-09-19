@@ -153,8 +153,9 @@ Fixture: `verdict-redact`
 `severity`.
 *Rationale: SHOULD, not MUST — an operator facing a blocked chunk needs to know
 why, but a plugin with nothing useful to say should not be forced to invent a
-string. `severity` stays optional because composition rules that would consume
-it are not specified yet (Q1).*
+string. `severity` stays optional because S7 ranks an absent value lowest, so a
+plugin that does not grade its findings still composes predictably under S6
+rather than having to guess at a level.*
 
 ---
 
