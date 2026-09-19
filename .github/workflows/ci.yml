@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned to commit SHAs: a tag is a mutable pointer, and whoever
+# can move it can run code on this runner with the job's token. Updates are
+# manual and infrequent by choice — three actions, checked when something
+# prompts it. If that becomes tedious, add .github/dependabot.yml rather than
+# going back to floating tags.
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
