@@ -81,7 +81,7 @@ def evaluate(request: dict) -> dict:
 
 
 def main() -> None:
-    # stdout is the protocol channel; diagnostics go to stderr (Q7).
+    # stdout is the protocol channel; diagnostics go to stderr (T2).
     print("rsp-echo: reading request", file=sys.stderr)
     request = json.load(sys.stdin)
     json.dump(evaluate(request), sys.stdout)

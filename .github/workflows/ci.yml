@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Nothing here pushes, so the token does not need to survive
+          # checkout — left in .git/config it can ride along in an artifact.
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          enable-cache: true
+      # --frozen fails when uv.lock is out of date with pyproject.toml, which
+      # nobody notices until someone else's install differs from theirs.
+      - run: uv sync --frozen
+      - run: uv run ruff check rsp/ tests/ plugins/
+      - run: uv run ruff format --check rsp/ tests/ plugins/
+
+      # The workflows are code too, and this repository has a rule about what
+      # they may do (AGENTS.md). actionlint catches expression and matrix
+      # mistakes; zizmor is the security-focused one — unpinned actions,
+      # over-broad permissions, untrusted input reaching a run block.
+      - run: uvx --from actionlint-py==1.7.12.24 actionlint .github/workflows/*.yml
+      - run: uvx zizmor==1.9.0 --persona=regular .github/workflows/
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyproject claims >=3.10; until this ran, only 3.12 was ever tested.
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest]
+        # One macOS job: the runtime rests on POSIX process semantics
+        # (start_new_session, killpg) and on pipe buffering, which differs —
+        # 64 KiB on Linux, 16 KiB on macOS.
+        include:
+          - python: "3.12"
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Nothing here pushes, so the token does not need to survive
+          # checkout — left in .git/config it can ride along in an artifact.
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen
+      # Unit tests, the conformance cases, and the spec/case drift checks are
+      # all pytest, so there is one thing to run here and one to run locally.
+      - run: uv run pytest tests/ -q --cov --cov-report=xml
+
+      # One upload, not five: the matrix exists to catch platform and version
+      # differences, and coverage does not differ between them.
+      - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
