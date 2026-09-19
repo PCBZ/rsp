@@ -110,9 +110,18 @@ it (#23). `on_source` and `on_document` are reserved.
 ```
 
 **M1.** `content` MUST be a JSON string carrying the text to inspect.
-`metadata` is advisory: a plugin MAY use it and MUST NOT require it.
-*Rationale: a plugin that needs host-specific metadata only works with that
-host, which defeats the point.*
+*Rationale: one field, one meaning. A plugin should not have to discover where
+the text is.*
+
+**M2.** `metadata` is advisory. A plugin MAY use it and MUST NOT require it: a
+request carrying no `metadata` MUST still produce a verdict.
+*Rationale: metadata is whatever the host happens to know — `file_path` and
+`node_id` are LlamaIndex's vocabulary. A plugin that needs them works with that
+host and no other, which defeats the point of a protocol. Split from M1 because
+this half can be tested and that half cannot: no plugin response proves the
+host sent a string, but a request without metadata proves the plugin does not
+need it.*
+Fixture: `metadata-is-advisory`
 
 ---
 
@@ -249,11 +258,11 @@ arrives with the runtime (#7).
 
 ## 10. Fixture coverage
 
-Eight of the normative clauses have a conformance case. The rest do not, and
+Nine of the normative clauses have a conformance case. The rest do not, and
 this section exists so that the gap is a stated position rather than an
 oversight.
 
-| Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
+| Covered | R1, T2, T3, H1, M2, V1, V2, V3, S1, S2 |
 |---|---|
 | **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
 
