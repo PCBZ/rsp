@@ -3,7 +3,7 @@ name = "rsp"
 version = "0.1.0.dev0"
 description = "RAG Security Protocol — where security tools hook into a RAG pipeline, and what they return"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 
 # The protocol core has no runtime dependencies: subprocess plus JSON from the
@@ -39,7 +39,8 @@ branch = true
 
 [tool.coverage.report]
 # Plugins are subprocesses and never imported, so coverage cannot see them,
-# and conformance/ is data. guards.py imports a Runtime that does not exist
-# yet — remove this line when #7 lands and it becomes importable.
+# and conformance/ is data. guards.py imports fine since #7, but constructing
+# it calls Runtime.from_config, which arrives with #16 — remove this line then,
+# and expect the total to drop until the guards have tests of their own.
 omit = ["*/guards.py"]
 exclude_lines = ["if TYPE_CHECKING:", "raise NotImplementedError"]
