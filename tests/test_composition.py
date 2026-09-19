@@ -190,3 +190,72 @@ def test_the_reference_plugin_still_composes() -> None:
     result = runtime(Plugin(name="echo", command=ECHO)).evaluate("on_chunk", "密钥 secret")
     assert result.verdict is Verdict.REDACT
     assert result.content == "密钥 [REDACTED:echo-test]"
+
+
+@pytest.mark.parametrize(
+    ("label", "response"),
+    [
+        ("verdict is a list", {"verdict": ["BLOCK"]}),
+        (
+            "offsets are strings",
+            {"verdict": "REDACT", "spans": [{"start": "0", "end": "3"}], "replacement": "[X]"},
+        ),
+        (
+            "offsets are booleans",
+            {"verdict": "REDACT", "spans": [{"start": True, "end": True}], "replacement": "[X]"},
+        ),
+        ("spans is not a list", {"verdict": "REDACT", "spans": {"start": 0}, "replacement": "[X]"}),
+        ("a span is not an object", {"verdict": "REDACT", "spans": ["0-3"], "replacement": "[X]"}),
+        (
+            "severity is a number",
+            {
+                "verdict": "REDACT",
+                "spans": [{"start": 0, "end": 3}],
+                "replacement": "[X]",
+                "severity": 9,
+            },
+        ),
+        (
+            "type is a number",
+            {
+                "verdict": "REDACT",
+                "spans": [{"start": 0, "end": 3, "type": 7}],
+                "replacement": "[X]",
+            },
+        ),
+        ("replacement is missing", {"verdict": "REDACT", "spans": [{"start": 0, "end": 3}]}),
+        ("REDACT with no spans", {"verdict": "REDACT", "replacement": "[X]"}),
+    ],
+    ids=lambda v: v if isinstance(v, str) else "",
+)
+def test_a_hostile_payload_cannot_crash_the_host(label: str, response: dict) -> None:
+    """Every one of these raised before: a plugin chose when the host fell
+    over, which is the attack D2 isolates it for."""
+    result = runtime(fake("hostile", response)).evaluate("on_chunk", "0123456789")
+    assert result.blocked, label
+    assert result.content == "0123456789"
+
+
+def test_on_error_covers_semantic_failures_too() -> None:
+    """A plugin that returns an unusable response has failed as surely as one
+    that crashed, and on_error=allow was set with both in mind."""
+    lenient = fake("typo", {"verdict": "ALLOOW"}, on_error=OnError.ALLOW)
+    result = runtime(lenient).evaluate("on_chunk", "text")
+    assert result.verdict is Verdict.ALLOW
+    assert "on_error=allow" in result.reasons[0]
+
+
+def test_duplicate_plugin_names_are_refused() -> None:
+    """Names key the declarations, so a duplicate hands one plugin another's
+    capabilities — and a guard that never runs looks like one that found
+    nothing."""
+    with pytest.raises(ConfigError, match="configured twice"):
+        runtime(fake("same", {"verdict": "ALLOW"}), fake("same", {"verdict": "BLOCK"}))
+
+
+def test_reasons_accumulated_before_a_block_survive_it() -> None:
+    result = runtime(
+        fake("first", {"verdict": "FLAG", "reason": "looks odd"}),
+        fake("second", {"verdict": "BLOCK", "reason": "aws key"}),
+    ).evaluate("on_chunk", "text")
+    assert result.reasons == ["first: looks odd", "second: aws key", "second: BLOCK"]

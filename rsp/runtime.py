@@ -607,6 +607,55 @@ class Result:
         return self.verdict is Verdict.BLOCK
 
 
+def _verdict_of(payload: Mapping[str, Any]) -> Verdict | None:
+    """The declared verdict, or None if it is not one (V1).
+
+    isinstance before lookup: a plugin may return any JSON, and `["BLOCK"] in
+    set(Verdict)` raises rather than answering. Everything a plugin sends is a
+    claim about its own output, checked before it is used.
+    """
+    declared = payload.get("verdict")
+    if not isinstance(declared, str):
+        return None
+    try:
+        return Verdict(declared)
+    except ValueError:
+        return None
+
+
+def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Span] | None:
+    """Every span in a REDACT response, or None if any of it is unusable.
+
+    Validation is per response rather than at redaction time so the failure can
+    be attributed: the host knows which plugin sent it and can apply that
+    plugin's on_error. It also enforces V3 — a REDACT with no spans or no
+    replacement is not a REDACT.
+    """
+    raw_spans = payload.get("spans")
+    replacement = payload.get("replacement")
+    severity = payload.get("severity", "low")
+    if not isinstance(raw_spans, list) or not raw_spans:
+        return None
+    if not isinstance(replacement, str) or not isinstance(severity, str):
+        return None
+
+    spans = []
+    for raw in raw_spans:
+        if not isinstance(raw, Mapping):
+            return None
+        start, end, kind = raw.get("start"), raw.get("end"), raw.get("type")
+        # bool is an int in Python, and `true` is not an offset.
+        if not all(isinstance(v, int) and not isinstance(v, bool) for v in (start, end)):
+            return None
+        if kind is not None and not isinstance(kind, str):
+            return None
+        span = Span(start, end, kind, severity, replacement, order)
+        if not valid_span(span, content):
+            return None  # S3: out of range, inverted, or cutting a character
+        spans.append(span)
+    return spans
+
+
 class Runtime:
     """Dispatches a hook across plugins and composes one verdict (#7).
 
@@ -619,9 +668,16 @@ class Runtime:
         self.plugins = list(plugins)
         self.declarations: dict[str, Handshake] = {}
         for plugin in self.plugins:
-            outcome, declaration = handshake(plugin.command, timeout=plugin.timeout)
+            if plugin.name in self.declarations:
+                # Names key the declarations, so a duplicate silently gives one
+                # plugin another's capabilities — and a guard that never runs
+                # looks exactly like a guard that found nothing.
+                raise ConfigError(f"{plugin.name}: configured twice")
+            outcome, declaration = handshake(
+                plugin.command, timeout=plugin.timeout, max_output=plugin.max_output
+            )
             if declaration is None:
-                raise ConfigError(f"{plugin.name}: handshake failed ({outcome.value})")
+                raise ConfigError(f"{plugin.name}: handshake failed ({outcome})")
             self.declarations[plugin.name] = declaration
 
     def for_hook(self, hook: str) -> list[Plugin]:
@@ -636,10 +692,11 @@ class Runtime:
         self, hook: str, content: str, metadata: Mapping[str, Any] | None = None
     ) -> Result:
         """Never raises (E2). Every failure becomes a verdict, and by E1 that
-        verdict is BLOCK unless a plugin's on_error says otherwise."""
-        request = {"rsp_version": RSP_VERSION, "hook": hook, "content": content}
+        verdict is BLOCK unless that plugin's on_error says otherwise."""
+        request: dict[str, Any] = {"rsp_version": RSP_VERSION, "hook": hook, "content": content}
         if metadata:
             request["metadata"] = dict(metadata)
+        data = content.encode("utf-8")
 
         verdict, spans, reasons = Verdict.ALLOW, [], []
         types: set[str] = set()
@@ -652,80 +709,84 @@ class Runtime:
             )
 
             if not reply.ok:
-                failure = f"{plugin.name}: {reply.outcome.value}"
-                if plugin.on_error is OnError.BLOCK:
-                    return self._blocked(
-                        content, failure, types, severities, contributors + [plugin.name]
-                    )
-                reasons.append(f"{failure} (on_error={plugin.on_error.value})")
+                if self._failed(plugin, str(reply.outcome), reasons):
+                    return self._blocked(content, types, severities, contributors, reasons)
                 continue
 
-            declared = reply.payload.get("verdict")
-            if declared not in set(Verdict):
-                # An unrecognized verdict is not a verdict (V1). Guessing at the
-                # intent of "ALLOOW" is how a typo becomes a silent allow.
-                return self._blocked(
-                    content,
-                    f"{plugin.name}: verdict {declared!r}",
-                    types,
-                    severities,
-                    contributors + [plugin.name],
-                )
+            said = _verdict_of(reply.payload)
+            if said is None:
+                # Guessing at "ALLOOW" is how a typo becomes a silent allow.
+                if self._failed(plugin, f"verdict {reply.payload.get('verdict')!r}", reasons):
+                    return self._blocked(content, types, severities, contributors, reasons)
+                continue
 
-            said = Verdict(declared)
             contributors.append(plugin.name)
-            if reason := reply.payload.get("reason"):
+            if isinstance(reason := reply.payload.get("reason"), str):
                 reasons.append(f"{plugin.name}: {reason}")
-            if severity := reply.payload.get("severity"):
+            if isinstance(severity := reply.payload.get("severity"), str):
                 severities.add(severity)
 
             if said is Verdict.BLOCK:
                 # Short-circuits: later verdicts about rejected content are
                 # unused, and running them invites a plugin to expect a call it
                 # never receives (D9).
-                return self._blocked(
-                    content, f"{plugin.name}: BLOCK", types, severities, contributors
-                )
+                reasons.append(f"{plugin.name}: BLOCK")
+                return self._blocked(content, types, severities, contributors, reasons)
 
             if said is Verdict.REDACT:
-                replacement = reply.payload.get("replacement", "[REDACTED]")
-                for raw in reply.payload.get("spans", []):
-                    spans.append(
-                        Span(
-                            start=raw.get("start", -1),
-                            end=raw.get("end", -1),
-                            type=raw.get("type"),
-                            severity=reply.payload.get("severity", "low"),
-                            replacement=replacement,
-                            order=order,
-                        )
-                    )
-                    if kind := raw.get("type"):
-                        types.add(kind)
+                declared = _spans_of(reply.payload, order, data)
+                if declared is None:
+                    # A response the host cannot use is a plugin error (S3, V3).
+                    # Applying this plugin's other spans would let it report
+                    # nothing by reporting garbage, and the host cannot tell
+                    # which of its claims were sound.
+                    contributors.pop()
+                    if self._failed(plugin, "unusable spans", reasons):
+                        return self._blocked(content, types, severities, contributors, reasons)
+                    continue
+                spans.extend(declared)
+                types.update(span.type for span in declared if span.type)
 
             if STRICTNESS[said] > STRICTNESS[verdict]:
                 verdict = said
 
-        redacted, rejected = redact(content, spans)
-        if rejected:
-            # A span that is out of range or cuts a character is a plugin error
-            # (S3), so E1 applies. Applying the plugin's other spans would let
-            # it report nothing by reporting garbage, and the host cannot tell
-            # which of its claims were sound.
-            return self._blocked(
-                content, f"invalid span from {rejected[0].order}", types, severities, contributors
-            )
-
+        redacted, _ = redact(content, spans)  # every span was validated on arrival
         return Result(
             verdict, redacted, self._provenance(verdict, types, severities, contributors), reasons
         )
 
-    def _blocked(self, content, reason, types, severities, contributors) -> Result:
+    @staticmethod
+    def _failed(plugin: Plugin, detail: str, reasons: list[str]) -> bool:
+        """Record a plugin failure and say whether it blocks the chunk.
+
+        on_error covers every failure of that plugin, not only the ones that
+        happen to the process: a plugin that returns an unusable response has
+        failed as surely as one that crashed, and an operator who set
+        on_error=allow for a metrics collector meant both.
+
+        ALLOW and SKIP have the same effect on composition today — neither
+        contributes a verdict. They are kept apart because the intent differs,
+        and because provenance may come to distinguish them.
+        """
+        suffix = "" if plugin.on_error is OnError.BLOCK else f" (on_error={plugin.on_error})"
+        reasons.append(f"{plugin.name}: {detail}{suffix}")
+        return plugin.on_error is OnError.BLOCK
+
+    def _blocked(
+        self,
+        content: str,
+        types: set[str],
+        severities: set[str],
+        contributors: list[str],
+        reasons: list[str],
+    ) -> Result:
+        """Blocked content is returned unchanged: it is not being stored, and
+        redacting something nobody will see costs work and loses evidence."""
         return Result(
             Verdict.BLOCK,
             content,
             self._provenance(Verdict.BLOCK, types, severities, contributors),
-            [reason],
+            reasons,
         )
 
     @staticmethod
