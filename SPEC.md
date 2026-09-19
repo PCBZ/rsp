@@ -100,7 +100,7 @@ it (#23). `on_source` and `on_document` are reserved.
 
 ---
 
-## 5. Request
+## 5. Request (M)
 
 ```json
 { "rsp_version": "0.1",
@@ -109,7 +109,7 @@ it (#23). `on_source` and `on_document` are reserved.
   "metadata": { "source": "notes/aws.md", "node_id": "..." } }
 ```
 
-**Q1.** `content` MUST be a JSON string carrying the text to inspect.
+**M1.** `content` MUST be a JSON string carrying the text to inspect.
 `metadata` is advisory: a plugin MAY use it and MUST NOT require it.
 *Rationale: a plugin that needs host-specific metadata only works with that
 host, which defeats the point.*
@@ -255,7 +255,7 @@ oversight.
 
 | Covered | R1, T2, T3, H1, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, H4, K1, K2, Q1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
+| **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
 
 Everything uncovered is a requirement on the **host**, and nothing can exercise
 it until the runtime exists (#4–#7) and the kit runs standalone (#19). A

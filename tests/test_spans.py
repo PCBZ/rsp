@@ -54,10 +54,32 @@ def test_a_coalesced_span_records_every_contributing_type() -> None:
     assert merged[0].type == "aws-key+generic"
 
 
+def test_a_later_merge_can_take_the_replacement_back() -> None:
+    """Three spans, two merges. The first merge hands the replacement to the
+    high-severity span from plugin 2; the second brings in an equally severe
+    span from plugin 1, which S6 says wins the tie. The merged span must
+    therefore carry the current winner's order, not the earliest contributor's,
+    or plugin 2 keeps a replacement that plugin 1 should have taken."""
+    a = span(0, 4, sev="low", rep="[A]", order=0)
+    b = span(2, 7, sev="high", rep="[B]", order=2)
+    c = span(6, 9, sev="high", rep="[C]", order=1)
+    merged = merge_spans([a, b, c])
+    assert len(merged) == 1
+    assert merged[0].replacement == "[C]"
+
+
 def test_order_of_arrival_does_not_change_the_result() -> None:
     """Composition must not depend on which plugin happened to answer first."""
     a, b = span(0, 4, rep="[A]"), span(2, 6, sev="high", rep="[B]")
     assert redact(TEXT, [a, b]) == redact(TEXT, [b, a])
+
+    # and with the three-span case, where the winner changes mid-merge
+    trio = [
+        span(0, 4, sev="low", rep="[A]", order=0),
+        span(2, 7, sev="high", rep="[B]", order=2),
+        span(6, 9, sev="high", rep="[C]", order=1),
+    ]
+    assert redact(TEXT, trio) == redact(TEXT, list(reversed(trio)))
 
 
 def test_every_plugin_addresses_the_original_content() -> None:

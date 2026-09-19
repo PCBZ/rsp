@@ -501,7 +501,12 @@ def merge_spans(spans: Iterable[Span]) -> list[Span]:
                 type="+".join(sorted(types)) or None,
                 severity=winner.severity,
                 replacement=winner.replacement,
-                order=min(current.order, span.order),
+                # The winner's order, not the earliest contributor's: this
+                # field exists to break the next tie, and the next tie is
+                # against whoever currently holds the replacement. Carrying the
+                # earliest order instead lets a later plugin keep a replacement
+                # that an earlier one should have taken.
+                order=winner.order,
             )
         else:
             merged.append(span)
