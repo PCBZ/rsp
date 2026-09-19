@@ -47,8 +47,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # pyproject claims >=3.10; until this ran, only 3.12 was ever tested.
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        # The floor is 3.11 (3.10 reaches end of life 2026-10-31) and the
+        # ceiling is whatever is current, because a version nobody runs here is
+        # a version this promise is not being kept for.
+        python: ["3.11", "3.12", "3.13", "3.14"]
         os: [ubuntu-latest]
         # One macOS job: the runtime rests on POSIX process semantics
         # (start_new_session, killpg) and on pipe buffering, which differs —

@@ -8,6 +8,9 @@ Two layers, deliberately separable:
               explaining why there is none.
     handshake()  who a plugin says it is, validated (#5).
     redact()  what a chunk looks like after every plugin has spoken (#21).
+    Runtime.evaluate()  the deciding layer: dispatch, compose, and turn a
+              failure into BLOCK (#7). The layers below classify; this one
+              decides.
 
 Neither turns a failure into BLOCK. That is E1, and it belongs to the layer
 that knows about verdicts (#7).
@@ -34,7 +37,7 @@ DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout; exceeding it is an error (E1)
 _CHUNK = 65536
 
 
-class Outcome(enum.Enum):
+class Outcome(enum.StrEnum):
     """How a call ended. Everything but OK is an error under E1 and E3.
 
     The first six describe the process; the last two describe what it said.
@@ -538,3 +541,201 @@ def redact(content: str, spans: Iterable[Span]) -> tuple[str, list[Span]]:
         cursor = span.end
     out += data[cursor:]
     return out.decode("utf-8"), rejected
+
+
+class Verdict(enum.StrEnum):
+    """The four outcomes a plugin may return (V1).
+
+    A StrEnum, not an IntEnum: these values go on the wire, and the ordering
+    below is a policy (D9, strictest wins) rather than a property of the words.
+    Keeping the rank in a table means the policy can be read — and argued with —
+    instead of being implied by which number someone assigned.
+    """
+
+    ALLOW = "ALLOW"
+    FLAG = "FLAG"
+    REDACT = "REDACT"
+    BLOCK = "BLOCK"
+
+
+STRICTNESS = {Verdict.ALLOW: 0, Verdict.FLAG: 1, Verdict.REDACT: 2, Verdict.BLOCK: 3}
+
+
+class OnError(enum.StrEnum):
+    """What a plugin's failure means. BLOCK unless configured otherwise (D3)."""
+
+    BLOCK = "block"
+    ALLOW = "allow"
+    SKIP = "skip"
+
+
+class ConfigError(Exception):
+    """Raised at construction, never during evaluation.
+
+    A misconfiguration should stop the run while someone is watching. The
+    alternative — degrading quietly into an index nobody is guarding — looks
+    exactly like success (thread on #24).
+    """
+
+
+@dataclass(frozen=True)
+class Plugin:
+    name: str
+    command: Sequence[str]
+    on_error: OnError = OnError.BLOCK
+    timeout: float = DEFAULT_TIMEOUT
+    max_output: int = DEFAULT_MAX_OUTPUT
+
+
+@dataclass(frozen=True)
+class Result:
+    """What the host acts on.
+
+    `content` is already redacted (S4): the host never sees a span. `reasons`
+    are for the operator's log and deliberately not in `provenance`, which is
+    written onto a stored node — a plugin's free text could quote the very
+    bytes it matched, and Q8 keeps matched content out of the index.
+    """
+
+    verdict: Verdict
+    content: str
+    provenance: dict[str, Any]
+    reasons: list[str]
+
+    @property
+    def blocked(self) -> bool:
+        return self.verdict is Verdict.BLOCK
+
+
+class Runtime:
+    """Dispatches a hook across plugins and composes one verdict (#7).
+
+    Handshakes eagerly: a plugin that cannot introduce itself is a
+    configuration problem, and those are raised while someone is watching
+    rather than turned into a silently unguarded index.
+    """
+
+    def __init__(self, plugins: Sequence[Plugin]) -> None:
+        self.plugins = list(plugins)
+        self.declarations: dict[str, Handshake] = {}
+        for plugin in self.plugins:
+            outcome, declaration = handshake(plugin.command, timeout=plugin.timeout)
+            if declaration is None:
+                raise ConfigError(f"{plugin.name}: handshake failed ({outcome.value})")
+            self.declarations[plugin.name] = declaration
+
+    def for_hook(self, hook: str) -> list[Plugin]:
+        """Only plugins that declared this hook (H3).
+
+        A plugin handed a hook it never declared cannot refuse it, so whatever
+        verdict it returns is about a situation it was not written for.
+        """
+        return [p for p in self.plugins if self.declarations[p.name].supports(hook)]
+
+    def evaluate(
+        self, hook: str, content: str, metadata: Mapping[str, Any] | None = None
+    ) -> Result:
+        """Never raises (E2). Every failure becomes a verdict, and by E1 that
+        verdict is BLOCK unless a plugin's on_error says otherwise."""
+        request = {"rsp_version": RSP_VERSION, "hook": hook, "content": content}
+        if metadata:
+            request["metadata"] = dict(metadata)
+
+        verdict, spans, reasons = Verdict.ALLOW, [], []
+        types: set[str] = set()
+        severities: set[str] = set()
+        contributors: list[str] = []
+
+        for order, plugin in enumerate(self.for_hook(hook)):
+            reply = call(
+                plugin.command, request, timeout=plugin.timeout, max_output=plugin.max_output
+            )
+
+            if not reply.ok:
+                failure = f"{plugin.name}: {reply.outcome.value}"
+                if plugin.on_error is OnError.BLOCK:
+                    return self._blocked(
+                        content, failure, types, severities, contributors + [plugin.name]
+                    )
+                reasons.append(f"{failure} (on_error={plugin.on_error.value})")
+                continue
+
+            declared = reply.payload.get("verdict")
+            if declared not in set(Verdict):
+                # An unrecognized verdict is not a verdict (V1). Guessing at the
+                # intent of "ALLOOW" is how a typo becomes a silent allow.
+                return self._blocked(
+                    content,
+                    f"{plugin.name}: verdict {declared!r}",
+                    types,
+                    severities,
+                    contributors + [plugin.name],
+                )
+
+            said = Verdict(declared)
+            contributors.append(plugin.name)
+            if reason := reply.payload.get("reason"):
+                reasons.append(f"{plugin.name}: {reason}")
+            if severity := reply.payload.get("severity"):
+                severities.add(severity)
+
+            if said is Verdict.BLOCK:
+                # Short-circuits: later verdicts about rejected content are
+                # unused, and running them invites a plugin to expect a call it
+                # never receives (D9).
+                return self._blocked(
+                    content, f"{plugin.name}: BLOCK", types, severities, contributors
+                )
+
+            if said is Verdict.REDACT:
+                replacement = reply.payload.get("replacement", "[REDACTED]")
+                for raw in reply.payload.get("spans", []):
+                    spans.append(
+                        Span(
+                            start=raw.get("start", -1),
+                            end=raw.get("end", -1),
+                            type=raw.get("type"),
+                            severity=reply.payload.get("severity", "low"),
+                            replacement=replacement,
+                            order=order,
+                        )
+                    )
+                    if kind := raw.get("type"):
+                        types.add(kind)
+
+            if STRICTNESS[said] > STRICTNESS[verdict]:
+                verdict = said
+
+        redacted, rejected = redact(content, spans)
+        if rejected:
+            # A span that is out of range or cuts a character is a plugin error
+            # (S3), so E1 applies. Applying the plugin's other spans would let
+            # it report nothing by reporting garbage, and the host cannot tell
+            # which of its claims were sound.
+            return self._blocked(
+                content, f"invalid span from {rejected[0].order}", types, severities, contributors
+            )
+
+        return Result(
+            verdict, redacted, self._provenance(verdict, types, severities, contributors), reasons
+        )
+
+    def _blocked(self, content, reason, types, severities, contributors) -> Result:
+        return Result(
+            Verdict.BLOCK,
+            content,
+            self._provenance(Verdict.BLOCK, types, severities, contributors),
+            [reason],
+        )
+
+    @staticmethod
+    def _provenance(verdict, types, severities, contributors) -> dict[str, Any]:
+        """Types and severities, never matched bytes or offsets (Q8)."""
+        provenance: dict[str, Any] = {"rsp.verdict": verdict.value}
+        if types:
+            provenance["rsp.types"] = sorted(types)
+        if severities:
+            provenance["rsp.severity"] = max(severities, key=lambda s: Severity.of(s))
+        if contributors:
+            provenance["rsp.plugins"] = contributors
+        return provenance
