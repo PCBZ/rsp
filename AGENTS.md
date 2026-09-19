@@ -6,11 +6,18 @@ works. Decisions (D1–D9) and open questions (Q1–Q8) are in the
 
 ## Layout
 
-- `rsp/runtime.py` — protocol: subprocess, handshake, codec, composition, cache. Knows no RAG framework.
+Each layer knows strictly less than the one above it, and the imports go one way.
+
+- `rsp/process.py` — start a plugin, feed it, drain it, reap it. Knows no JSON.
+- `rsp/codec.py` — a request in, a parsed response out. Knows no plugin identity.
+- `rsp/handshake.py` — who a plugin says it is.
+- `rsp/spans.py` — byte offsets and redaction. Knows no verdicts.
+- `rsp/runtime.py` — the deciding layer: dispatch, compose, fail closed.
 - `rsp/guards.py` — LlamaIndex adapter. Knows no transport.
 - `plugins/*` — untrusted third-party code. Detection lives only here.
 
-Only `guards.py` exists so far.
+A change that makes a lower layer import a higher one is a design change, not a
+convenience.
 
 ## Commands
 

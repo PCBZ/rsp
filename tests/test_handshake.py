@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from rsp.runtime import Handshake, Outcome, _declaration, handshake
+from rsp.handshake import Handshake, Outcome, _declaration, handshake
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 

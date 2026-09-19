@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from rsp.runtime import Span, merge_spans, redact, valid_span
+from rsp.spans import Span, merge_spans, redact, valid_span
 
 TEXT = "0123456789"
 

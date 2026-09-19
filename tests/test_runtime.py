@@ -11,8 +11,8 @@ import time
 
 import pytest
 
-from rsp import runtime
-from rsp.runtime import Invocation, Outcome, invoke
+from rsp import process as runtime
+from rsp.process import Invocation, Outcome, invoke
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 CAP = 4096

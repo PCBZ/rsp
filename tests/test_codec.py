@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from rsp.runtime import Outcome, call, decode, encode
+from rsp.codec import Outcome, call, decode, encode
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
