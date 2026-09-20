@@ -39,7 +39,8 @@ uv run pytest
 - Cache key is `hash(content + plugin_version + plugin_config)`; never cache a plugin that didn't declare determinism (D4).
 - Timeout every read and wait, then kill and reap. Plugin commands are argv lists, never `shell=True`.
 - Strictest verdict wins, `BLOCK` short-circuits (D9).
-- `guards.py` and each plugin adapter stay under 80 lines of code.
+- `guards.py` and each plugin adapter stay under 80 lines of code, counting
+  neither docstrings nor comments nor blank lines.
 
 ## Conventions
 
