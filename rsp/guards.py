@@ -1,4 +1,4 @@
-"""Host call site. This file does not run on its own yet.
+"""LlamaIndex adapters: the host side of the protocol.
 
 Written against the real llama-index-core 0.14.24 API, calling an ``rsp.runtime``
 that does not exist. The runtime's API is whatever this file needs it to be;
@@ -15,7 +15,7 @@ from typing import Any
 
 from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle, TransformComponent
-from pydantic import PrivateAttr
+from pydantic import ConfigDict
 
 from rsp.runtime import Runtime, Verdict
 
@@ -39,16 +39,13 @@ def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
 class RSPIngestGuard(TransformComponent):
     """on_chunk. A blocked node is not returned, so it is never embedded."""
 
-    config_path: str = "rsp.yaml"
-    _runtime: Runtime = PrivateAttr()
-
-    def model_post_init(self, context: Any) -> None:
-        self._runtime = Runtime.from_config(self.config_path)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    runtime: Runtime
 
     def __call__(self, nodes: Sequence[BaseNode], **kwargs: Any) -> Sequence[BaseNode]:
         kept: list[BaseNode] = []
         for node in nodes:
-            result = self._runtime.evaluate(
+            result = self.runtime.evaluate(
                 hook="on_chunk",
                 content=node.get_content(),
                 metadata={"source": node.metadata.get("file_path"), "node_id": node.id_},
@@ -67,11 +64,8 @@ class RSPIngestGuard(TransformComponent):
 class RSPRetrieveGuard(BaseNodePostprocessor):
     """on_retrieve. A blocked node is dropped from the result set (Q3)."""
 
-    config_path: str = "rsp.yaml"
-    _runtime: Runtime = PrivateAttr()
-
-    def model_post_init(self, context: Any) -> None:
-        self._runtime = Runtime.from_config(self.config_path)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    runtime: Runtime
 
     def _postprocess_nodes(
         self,
@@ -80,7 +74,7 @@ class RSPRetrieveGuard(BaseNodePostprocessor):
     ) -> list[NodeWithScore]:
         kept: list[NodeWithScore] = []
         for scored in nodes:
-            result = self._runtime.evaluate(
+            result = self.runtime.evaluate(
                 hook="on_retrieve",
                 content=scored.node.get_content(),
                 metadata={"node_id": scored.node.id_, "score": scored.score},
