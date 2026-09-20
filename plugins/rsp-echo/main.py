@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
-"""Plugin call site — issue #2. The counterpart to rsp/guards.py.
+"""The reference plugin, and the runtime's test instrument.
 
-guards.py defines what the runtime must offer a host. This defines what the
-runtime must send a plugin, and what it gets back. SPEC.md's wire format is
-reverse-engineered from the two together (#3).
+Stdlib only, deliberately: a plugin is a process that reads JSON on stdin and
+writes JSON on stdout. No SDK, no language requirement — this one is Python
+because the runtime is.
 
-Stdlib only, and deliberately so: a plugin is a process that reads JSON on
-stdin and writes JSON on stdout. There is no SDK to install and no language
-requirement — this one is Python because the runtime is, not because a plugin
-has to be.
+Content markers select the verdict, so fixtures can drive all four:
 
-It is also the runtime's test instrument. Content markers select each verdict,
-so a fixture can drive all four deterministically:
-
-    RSP-BLOCK   -> BLOCK
-    RSP-FLAG    -> FLAG
-    secret      -> REDACT (spans over every occurrence)
-    otherwise   -> ALLOW
-
-Run it by hand:
+    RSP-BLOCK -> BLOCK    RSP-FLAG -> FLAG    secret -> REDACT    else ALLOW
 
     echo '{"rsp_version":"0.1","hook":"on_chunk","content":"a secret here"}' \
         | python3 plugins/rsp-echo/main.py
@@ -31,9 +20,8 @@ RSP_VERSION = "0.1"
 REDACT_MARKER = "secret"
 REPLACEMENT = "[REDACTED:echo-test]"
 
-# One request object in, one response object out, then exit. Spawn-per-call is
-# the v0.1 model (Q6), which is why the handshake is its own invocation rather
-# than a first message on a long-lived stream.
+# The handshake is its own invocation, not a first message on a stream:
+# one call is one process in v0.1 (Q6).
 HANDSHAKE = {
     "rsp_version": RSP_VERSION,
     "name": "rsp-echo",
@@ -45,10 +33,9 @@ HANDSHAKE = {
 
 
 def spans_for(content: str) -> list[dict]:
-    """Byte offsets into the UTF-8 encoding of content, half-open (D6).
+    """Byte offsets into the UTF-8 encoding, half-open (D6).
 
-    Computed on the encoded bytes, not the str, so that a plugin in any
-    language produces the same numbers for the same input.
+    Computed on bytes, not the str, so any language produces the same numbers.
     """
     data = content.encode("utf-8")
     needle = REDACT_MARKER.encode("utf-8")

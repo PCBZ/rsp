@@ -1,13 +1,14 @@
 # Conformance cases
 
 A case is data: a request, an expected response, and the clause it exercises.
-No runner yet — that is #19.
+No runner beyond the test suite yet.
 
 Coverage is partial and is meant to be read as debt. Every clause a plugin-side
 case can settle has one; the rest are host-side (span validation, blocked
 content never reaching storage, errors becoming `BLOCK`) and cannot be tested
-until the runtime exists. `SPEC.md` lists exactly which ones, and #20 deletes
-any clause still lacking evidence at freeze time.
+until the runtime exists. `SPEC.md` lists exactly which ones, and a clause
+still lacking evidence when this version is tagged is deleted rather than
+shipped.
 
 ```json
 { "name": "...", "clause": "S1", "plugin": "rsp-echo",
@@ -18,7 +19,7 @@ any clause still lacking evidence at freeze time.
 `plugin` names the plugin a case is written against. These cases target the
 reference plugin, whose verdicts are selected by content markers. Cases that any
 plugin must pass — framing, stdout discipline, span validity — become
-plugin-agnostic in #19.
+plugin-agnostic once the kit is packaged to run standalone.
 
 ## Two kinds of case, one of which does not exist yet
 
@@ -29,8 +30,8 @@ before using it), K1 (blocked content is never embedded), E1–E3 (a failure
 becomes BLOCK). No plugin response settles any of them.
 
 Those need a **host case**: a declaration or a plugin response as input, and
-the host behaviour required in return. Deferred to #19 rather than guessed at
-here, because the shape should be designed against a host that exists.
+the host behaviour required in return. Deferred rather than guessed at here, because
+the shape should be designed against a host that exists.
 
 Until then, `SPEC.md` §10 lists host-side clauses as uncovered. That is the
 honest state, not an oversight: a clause tested only by our own unit tests has

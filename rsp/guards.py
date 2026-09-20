@@ -1,4 +1,4 @@
-"""Host call site — issue #1. This file does not run yet.
+"""Host call site. This file does not run on its own yet.
 
 Written against the real llama-index-core 0.14.24 API, calling an ``rsp.runtime``
 that does not exist. The runtime's API is whatever this file needs it to be;
@@ -17,7 +17,7 @@ from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle, TransformComponent
 from pydantic import PrivateAttr
 
-from rsp.runtime import Runtime, Verdict  # does not exist yet — #4, #5, #6, #7
+from rsp.runtime import Runtime, Verdict
 
 
 def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
@@ -96,4 +96,4 @@ class RSPRetrieveGuard(BaseNodePostprocessor):
 
 # on_response has no equivalent seam in LlamaIndex: response synthesis is not a
 # pluggable pipeline stage the way transformations and postprocessors are.
-# Open, tracked separately from #1 — see the note on this issue.
+# The clause is reserved rather than specified (SPEC.md section 4).

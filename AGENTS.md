@@ -6,11 +6,18 @@ works. Decisions (D1–D9) and open questions (Q1–Q8) are in the
 
 ## Layout
 
-- `rsp/runtime.py` — protocol: subprocess, handshake, codec, composition, cache. Knows no RAG framework.
+Each layer knows strictly less than the one above it, and the imports go one way.
+
+- `rsp/process.py` — start a plugin, feed it, drain it, reap it. Knows no JSON.
+- `rsp/codec.py` — a request in, a parsed response out. Knows no plugin identity.
+- `rsp/handshake.py` — who a plugin says it is.
+- `rsp/spans.py` — byte offsets and redaction. Knows no verdicts.
+- `rsp/runtime.py` — the deciding layer: dispatch, compose, fail closed.
 - `rsp/guards.py` — LlamaIndex adapter. Knows no transport.
 - `plugins/*` — untrusted third-party code. Detection lives only here.
 
-Only `guards.py` exists so far.
+A change that makes a lower layer import a higher one is a design change, not a
+convenience.
 
 ## Commands
 
@@ -39,6 +46,9 @@ uv run pytest
 - Call sites are written before the code they call. A file whose docstring says it does not run imports a module that doesn't exist yet — don't stub it, make it run, or test it.
 - Every MUST in `SPEC.md` gets a conformance fixture the same day. Fixtures assert protocol behaviour, not implementation.
 - Comments cite decisions by number: `# span application is the runtime's job (D6)`.
+- Never an issue number. `D6` and `S1` resolve inside a clone; `#13` resolves
+  only against a live tracker, and only until that issue is renumbered. Say the
+  reason or cite the clause — a test enforces this.
 - `ruff` owns formatting and annotation style.
 - One issue per PR, titled `#N Short summary`. Out-of-scope findings become issues, not scope creep.
 

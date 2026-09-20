@@ -1,8 +1,8 @@
 # RSP — RAG Security Protocol, v0.1 (draft)
 
 **Status: skeleton.** Every clause below is backed by a call site in this
-repository — `rsp/guards.py` (#1) for the host side, `plugins/rsp-echo/main.py`
-(#2) for the plugin side. Anything not yet exercised by one is in [Open
+repository — `rsp/guards.py` for the host side, `plugins/rsp-echo/main.py`
+for the plugin side. Anything not yet exercised by one is in [Open
 questions](#8-open-questions), not stated as a requirement.
 
 Key words MUST, MUST NOT, SHOULD, and MAY are as in RFC 2119. Every normative
@@ -96,8 +96,9 @@ not remove anything already stored.
 store, and a plugin author who assumes otherwise believes they are destroying
 data when they are not.*
 
-`on_response` is **reserved**, not specified: the reference host has no seam for
-it (#23). `on_source` and `on_document` are reserved.
+`on_response` is **reserved**, not specified: the reference host has no
+pluggable seam for response synthesis. `on_source` and `on_document` are
+reserved.
 
 ---
 
@@ -110,9 +111,13 @@ it (#23). `on_source` and `on_document` are reserved.
   "metadata": { "source": "notes/aws.md", "node_id": "..." } }
 ```
 
-**M1.** `content` MUST be a JSON string carrying the text to inspect.
-*Rationale: one field, one meaning. A plugin should not have to discover where
-the text is.*
+**M1.** `content` MUST be a JSON string carrying the text to inspect, and MUST
+be representable as UTF-8.
+*Rationale: one field, one meaning — a plugin should not have to discover where
+the text is. The encoding half is not redundant: a lone surrogate is a valid
+string in several languages and valid JSON, and cannot be encoded at all. A
+host holding one has nothing to send, and a span measured in bytes (S1) has
+nothing to count.*
 
 **M2.** `metadata` is advisory. A plugin MAY use it and MUST NOT require it: a
 request carrying no `metadata` MUST still produce a verdict.
@@ -191,7 +196,7 @@ get them wrong; `rsp/guards.py` receives finished content instead.*
 
 **S5.** Every plugin on a hook MUST receive the original content. Redaction
 happens once, after the last plugin has answered.
-*Rationale: settles Q2. The alternative — handing plugin N+1 what plugin N
+*Rationale: the alternative — handing plugin N+1 what plugin N
 redacted — means each plugin reports offsets into a different string and the
 host must map them back, with a replacement of a different length shifting
 every later range. One coordinate system costs duplicate findings on the same
@@ -200,7 +205,7 @@ bytes, which is what S6 is for.*
 **S6.** Overlapping or adjacent spans MUST coalesce into one range. The
 replacement used is that of the highest-severity contributing span; ties go to
 the earlier plugin in configured order.
-*Rationale: settles Q1. Adjacent ranges merge as well, because
+*Rationale: adjacent ranges merge as well, because
 `[REDACTED][REDACTED]` tells a reader exactly where the boundary fell. The tie
 rule exists so that composition does not depend on which plugin answered first
 — any rule short of a total order makes the output non-deterministic.*
@@ -236,7 +241,7 @@ spends real content.*
 by E1 that verdict is `BLOCK`.
 *Rationale: if the host had to catch exceptions, every host implementation would
 carry error-handling that must be correct for the protocol's central guarantee
-to hold. Keeping it in the runtime means no adapter can omit it. Raised on #24.*
+to hold. Keeping it in the runtime means no adapter can omit it.*
 
 ---
 
@@ -253,8 +258,7 @@ and will be settled by a fixture, not by prose.
 | Q8 | What provenance may be recorded on a stored node |
 
 Verdict composition across several plugins — strictest wins, `BLOCK`
-short-circuits — is **not specified here**. No call site exercises it yet; it
-arrives with the runtime (#7).
+short-circuits — is **not specified here**. No call site exercises it yet.
 
 ---
 
@@ -268,12 +272,12 @@ oversight.
 |---|---|
 | **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
 
-Everything uncovered is a requirement on the **host**, and nothing can exercise
-it until the runtime exists (#4–#7) and the kit runs standalone (#19). A
-plugin-side case cannot prove that blocked content never reached storage, that
-an invalid span was rejected, or that a crash became `BLOCK`.
+Everything uncovered is a requirement on the **host**, and no plugin-side case
+can prove it: not that blocked content never reached storage, not that an
+invalid span was rejected, not that a crash became `BLOCK`. Those wait on a
+conformance kit that can drive a host.
 
 *Rationale for stating it: an implementer needs to know which clauses have been
-tested and which are still assertions. At freeze (#20), a clause still without
-evidence is deleted rather than shipped — a dead clause misleads, and an
+tested and which are still assertions. Before this version is tagged, a clause
+still without evidence is deleted rather than shipped — a dead clause misleads, and an
 implementer misled by a security spec ships an insecure host.*

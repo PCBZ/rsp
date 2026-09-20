@@ -1,4 +1,4 @@
-"""Codec tests for #6: one object on stdout, and nothing else."""
+"""Codec tests: one object on stdout, and nothing else (T2)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from rsp.runtime import Outcome, call, decode, encode
+from rsp.codec import Outcome, call, decode, encode
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
@@ -119,3 +119,12 @@ def test_non_finite_values_are_rejected_on_the_way_in(raw: bytes) -> None:
 def test_finite_floats_still_work() -> None:
     reply = call(ECHO, {"hook": "on_retrieve", "content": "x", "metadata": {"score": 0.87}})
     assert reply.ok
+
+
+def test_a_string_that_cannot_be_utf8_is_unencodable() -> None:
+    """A lone surrogate is a valid str and valid JSON. UnicodeEncodeError is a
+    ValueError, so call() already catches it — this pins that, because the
+    correctness is inherited rather than written down."""
+    reply = call([sys.executable, "-c", "pass"], {"hook": "on_chunk", "content": "\ud800"})
+    assert reply.outcome is Outcome.UNENCODABLE
+    assert reply.invocation is None  # nothing was spawned

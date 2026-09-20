@@ -1,4 +1,4 @@
-"""Handshake tests for #5 — H1, H2, H3, D8."""
+"""Handshake tests — H1, H2, H3, H4, D8."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from rsp.runtime import Handshake, Outcome, _declaration, handshake
+from rsp.handshake import Handshake, Outcome, _declaration, handshake
 
 ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 

@@ -46,7 +46,7 @@ def test_fixture_references_point_at_real_cases(clause: str) -> None:
 def test_no_clause_cites_a_settled_question(clause: str) -> None:
     """A citation outlives its question silently — V4 kept pointing at Q1 in
     the same PR that answered it."""
-    for ref in set(re.findall(r"\((Q\d)\)", CLAUSES[clause])):
+    for ref in set(re.findall(r"\bQ\d\b", CLAUSES[clause])):
         assert ref in OPEN_QUESTIONS, f"{clause} cites {ref}, which is no longer open"
 
 
@@ -56,7 +56,7 @@ def test_no_clause_cites_a_settled_question(clause: str) -> None:
     ids=lambda p: p.name,
 )
 def test_no_comment_cites_a_settled_question(source: pathlib.Path) -> None:
-    for ref in set(re.findall(r"\((Q\d)\)", source.read_text())):
+    for ref in set(re.findall(r"\bQ\d\b", source.read_text())):
         assert ref in OPEN_QUESTIONS, f"{source.name} cites {ref}, which is no longer open"
 
 
@@ -64,6 +64,25 @@ def test_no_comment_cites_a_settled_question(source: pathlib.Path) -> None:
 def test_every_case_names_a_clause_the_spec_defines(name: str) -> None:
     for clause in clauses_in(CASES[name]["clause"]):
         assert clause in CLAUSES, f"case {name} claims a clause the spec does not define"
+
+
+ISSUE_REFERENCE = re.compile(r"(?<!\]\()#\d+")
+
+DURABLE_TEXT = (
+    sorted((ROOT / "rsp").glob("*.py"))
+    + sorted((ROOT / "plugins").rglob("*.py"))
+    + [ROOT / "SPEC.md", ROOT / "conformance" / "cases" / "README.md"]
+)
+
+
+@pytest.mark.parametrize("path", DURABLE_TEXT, ids=lambda p: p.name)
+def test_no_issue_numbers_in_durable_text(path: pathlib.Path) -> None:
+    """An issue number resolves only against a live GitHub, and only while that
+    issue keeps its number. Clause IDs — D6, S1, Q6 — resolve inside a clone,
+    and SPEC.md must be readable by someone who has never seen the tracker.
+    Say the reason, or cite the clause."""
+    found = ISSUE_REFERENCE.findall(path.read_text())
+    assert not found, f"{path.name} points at {found} instead of stating the reason"
 
 
 def test_coverage_table_matches_the_cases_on_disk() -> None:
