@@ -117,12 +117,20 @@ def invoke(
         try:
             while chunk := stream.read1(_CHUNK):
                 room = cap - len(sink)
-                if len(chunk) > room:
-                    sink += chunk[:room]
-                    oversize.set()
-                    _kill_group(pgid)
+                if len(chunk) <= room:
+                    sink += chunk
+                    continue
+                sink += chunk[:room]
+                if not protocol_channel:
+                    # A talkative plugin is not a failing one (E3). Keep
+                    # draining so it does not block on a full pipe, and throw
+                    # the excess away.
+                    while stream.read1(_CHUNK):
+                        pass
                     return
-                sink += chunk
+                oversize.set()
+                _kill_group(pgid)
+                return
         except OSError:
             # Losing bytes on stdout means an incomplete response; on stderr it
             # costs only diagnostics, which is no reason to reject content (E3).

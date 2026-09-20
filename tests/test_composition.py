@@ -259,3 +259,26 @@ def test_reasons_accumulated_before_a_block_survive_it() -> None:
         fake("second", {"verdict": "BLOCK", "reason": "aws key"}),
     ).evaluate("on_chunk", "text")
     assert result.reasons == ["first: looks odd", "second: aws key", "second: BLOCK"]
+
+
+def test_an_unencodable_replacement_is_an_unusable_span() -> None:
+    """isinstance(x, str) checks the type; it does not check that the value can
+    reach a plugin. A lone surrogate passes the first and fails the second."""
+    result = runtime(
+        fake(
+            "hostile",
+            {"verdict": "REDACT", "spans": [{"start": 0, "end": 3}], "replacement": "\ud800"},
+        )
+    ).evaluate("on_chunk", "0123456789")
+    assert result.blocked
+    assert result.content == "0123456789"
+
+
+def test_content_the_host_cannot_encode_is_blocked_before_any_plugin_runs() -> None:
+    """A host can read a lone surrogate out of a mis-encoded file. No plugin
+    can be asked about content that cannot go on the wire."""
+    would_allow = fake("never-called", {"verdict": "ALLOW"})
+    result = runtime(would_allow).evaluate("on_chunk", "\ud800")
+    assert result.blocked
+    assert "not encodable" in result.reasons[0]
+    assert "rsp.plugins" not in result.provenance  # nothing was consulted

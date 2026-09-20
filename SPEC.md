@@ -111,9 +111,13 @@ reserved.
   "metadata": { "source": "notes/aws.md", "node_id": "..." } }
 ```
 
-**M1.** `content` MUST be a JSON string carrying the text to inspect.
-*Rationale: one field, one meaning. A plugin should not have to discover where
-the text is.*
+**M1.** `content` MUST be a JSON string carrying the text to inspect, and MUST
+be representable as UTF-8.
+*Rationale: one field, one meaning — a plugin should not have to discover where
+the text is. The encoding half is not redundant: a lone surrogate is a valid
+string in several languages and valid JSON, and cannot be encoded at all. A
+host holding one has nothing to send, and a span measured in bytes (S1) has
+nothing to count.*
 
 **M2.** `metadata` is advisory. A plugin MAY use it and MUST NOT require it: a
 request carrying no `metadata` MUST still produce a verdict.

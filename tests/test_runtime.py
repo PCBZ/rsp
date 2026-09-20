@@ -211,3 +211,21 @@ def test_invoke_never_raises() -> None:
     """E2 in miniature: this layer classifies failures, it does not propagate them."""
     for command in (["./nope"], script("import sys; sys.exit(9)"), script("raise SystemExit(1)")):
         assert isinstance(invoke(command, b"{}", timeout=2.0), Invocation)
+
+
+def test_a_flood_of_diagnostics_does_not_fail_the_call() -> None:
+    """stderr is not the protocol channel (E3). Capping it protects memory;
+    rejecting the response would turn a logging hiccup into dropped data."""
+    chatty = script('import sys; sys.stdin.read(); sys.stderr.write("x" * 200_000); print("{}")')
+    result = invoke(chatty, b"{}", max_output=1 << 16)
+    assert result.outcome is Outcome.OK
+    assert result.stdout == b"{}\n"
+    assert len(result.stderr) == 1 << 16  # capped, not collected whole
+
+
+def test_a_flood_on_stdout_still_fails() -> None:
+    flood = script(
+        'import sys\nsys.stdin.read()\nwhile True: sys.stdout.buffer.write(b"x" * 65536)'
+    )
+    result = invoke(flood, b"{}", timeout=10.0, max_output=1 << 16)
+    assert result.outcome is Outcome.OVERSIZE

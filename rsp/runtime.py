@@ -108,6 +108,12 @@ def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Sp
         return None
     if not isinstance(replacement, str) or not isinstance(severity, str):
         return None
+    try:
+        # A lone surrogate is a valid str and valid JSON, and cannot be UTF-8.
+        # Checking the type is not checking that the value can be used.
+        replacement.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
 
     spans = []
     for raw in raw_spans:
@@ -164,7 +170,19 @@ class Runtime:
         request: dict[str, Any] = {"rsp_version": RSP_VERSION, "hook": hook, "content": content}
         if metadata:
             request["metadata"] = dict(metadata)
-        data = content.encode("utf-8")
+
+        try:
+            data = content.encode("utf-8")
+        except UnicodeEncodeError:
+            # Not a plugin's fault — a host can read a lone surrogate out of a
+            # mis-encoded file — but no plugin can be asked about content that
+            # cannot go on the wire, so there is no trustworthy verdict (E3).
+            return Result(
+                Verdict.BLOCK,
+                content,
+                {"rsp.verdict": Verdict.BLOCK.value},
+                ["content is not encodable as UTF-8"],
+            )
 
         verdict, spans, reasons = Verdict.ALLOW, [], []
         types: set[str] = set()
