@@ -18,7 +18,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-DEFAULT_TIMEOUT = 5.0  # seconds, per call (Q4)
+DEFAULT_TIMEOUT = 5.0  # seconds, per call, startup included (E4)
 DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout; exceeding it is an error (E1)
 _CHUNK = 65536
 

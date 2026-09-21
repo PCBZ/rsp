@@ -85,6 +85,24 @@ def test_no_issue_numbers_in_durable_text(path: pathlib.Path) -> None:
     assert not found, f"{path.name} points at {found} instead of stating the reason"
 
 
+def test_the_default_timeout_matches_the_spec() -> None:
+    """E4 states a number, and so does the code. A number stated twice is a
+    number that will disagree with itself."""
+    from rsp.process import DEFAULT_TIMEOUT
+
+    stated = re.search(r"defaults to \*\*(\d+) seconds\*\*", SPEC)
+    assert stated, "E4 no longer states a default in the form the code can check"
+    assert DEFAULT_TIMEOUT == float(stated.group(1))
+
+
+def test_the_on_error_values_match_the_spec() -> None:
+    """E5 enumerates them; so does the enum."""
+    from rsp.runtime import OnError
+
+    stated = set(re.findall(r"`(block|allow|skip)`", SPEC))
+    assert {member.value for member in OnError} == stated
+
+
 def test_coverage_table_matches_the_cases_on_disk() -> None:
     claimed = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))
     actual = {c for case in CASES.values() for c in clauses_in(case["clause"])}

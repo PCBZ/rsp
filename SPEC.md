@@ -237,6 +237,35 @@ is about to act on. Losing a log line costs a debugging aid. Treating both as
 `BLOCK` turns a logging hiccup into dropped data, which buys no security and
 spends real content.*
 
+**E4.** The host MUST bound how long it waits for a plugin. The bound is per
+plugin, defaults to **5 seconds**, and covers the whole call including the
+plugin's own startup. Exceeding it is an error (E1).
+*Rationale: without a bound, one plugin that never answers stops an ingest
+entirely, and fail-closed becomes fail-stopped. Five seconds is chosen to be
+generous for a scanner and intolerable for a hang. Startup counts because one
+call is one process: a plugin with an expensive runtime spends part of its
+budget before it reads the request, and a plugin author needs to know that is
+the deal rather than discovering it as a flaky timeout. A host MAY use a
+shorter bound on `on_retrieve`, where a person is waiting, than on `on_chunk`,
+where a batch is.*
+
+**E5.** A plugin's `on_error` MUST be one of `block` (the default), `allow`, or
+`skip`, and applies to every failure of that plugin — not only failures of its
+process.
+*Rationale: the default is where the security property lives, so it is stated
+rather than left to a host. The override exists because a plugin that only ever
+returns `FLAG` — a metrics collector — should not stop an index by crashing.
+And it covers semantic failures because an unusable response is a failure as
+surely as a crash: an operator who set `allow` for that collector meant both,
+and would be surprised to find a malformed verdict still blocking.*
+
+A plugin that ignores the request and exits is reported as `EMPTY` for a small
+request and as a delivery failure for a large one: a small request fits the pipe
+buffer, so the write completes before the process goes away and there is no
+broken pipe to observe. Both are errors under E1, so the guarantee holds either
+way — but one bug appears in two forms, and nothing can determine whether a
+process read what it was sent.
+
 **E2.** `Runtime.evaluate` MUST NOT raise. Every failure becomes a verdict, and
 by E1 that verdict is `BLOCK`.
 *Rationale: if the host had to catch exceptions, every host implementation would
@@ -253,7 +282,6 @@ and will be settled by a fixture, not by prose.
 | | |
 |---|---|
 | Q3 | Whether `on_retrieve` reports dropped items to the user |
-| Q4 | Timeout default |
 | Q6 | Spawn-per-call vs a persistent process, and what the handshake costs per ingest |
 | Q8 | What provenance may be recorded on a stored node |
 
@@ -270,7 +298,7 @@ oversight.
 
 | Covered | R1, T2, T3, H1, M2, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, V4 |
+| **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, E4, E5, V4 |
 
 Everything uncovered is a requirement on the **host**, and no plugin-side case
 can prove it: not that blocked content never reached storage, not that an
