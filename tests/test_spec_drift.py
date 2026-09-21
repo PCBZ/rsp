@@ -90,7 +90,7 @@ def test_the_default_timeout_matches_the_spec() -> None:
     number that will disagree with itself."""
     from rsp.process import DEFAULT_TIMEOUT
 
-    stated = re.search(r"defaults to \*\*(\d+) seconds\*\*", SPEC)
+    stated = re.search(r"defaults to\s+\*\*(\d+)\s+seconds\*\*", CLAUSES["E4"])
     assert stated, "E4 no longer states a default in the form the code can check"
     assert DEFAULT_TIMEOUT == float(stated.group(1))
 
@@ -99,7 +99,7 @@ def test_the_on_error_values_match_the_spec() -> None:
     """E5 enumerates them; so does the enum."""
     from rsp.runtime import OnError
 
-    stated = set(re.findall(r"`(block|allow|skip)`", SPEC))
+    stated = set(re.findall(r"`(block|allow|skip)`", CLAUSES["E5"]))
     assert {member.value for member in OnError} == stated
 
 

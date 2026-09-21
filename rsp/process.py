@@ -157,7 +157,11 @@ def invoke(
 
     timed_out = False
     try:
-        proc.wait(timeout=timeout)
+        # Measured from `started`, not from here: the spawn itself costs a few
+        # milliseconds, and E4 bounds the wait from the moment the host starts
+        # the plugin. The plugin's own startup runs inside this window, which
+        # is why it spends the budget rather than extending it.
+        proc.wait(timeout=max(0.0, timeout - (time.monotonic() - started)))
     except subprocess.TimeoutExpired:
         timed_out = True
         _kill_group(pgid)

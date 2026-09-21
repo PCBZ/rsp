@@ -237,15 +237,17 @@ is about to act on. Losing a log line costs a debugging aid. Treating both as
 `BLOCK` turns a logging hiccup into dropped data, which buys no security and
 spends real content.*
 
-**E4.** The host MUST bound how long it waits for a plugin. The bound is per
-plugin, defaults to **5 seconds**, and covers the whole call including the
-plugin's own startup. Exceeding it is an error (E1).
+**E4.** The host MUST bound how long it waits for a plugin to answer, measured
+from the moment it starts the plugin. The bound is per plugin and defaults to
+**5 seconds**. Exceeding it is an error (E1). Work the host does afterwards —
+killing the process, reaping it — is not part of the bound.
 *Rationale: without a bound, one plugin that never answers stops an ingest
 entirely, and fail-closed becomes fail-stopped. Five seconds is chosen to be
 generous for a scanner and intolerable for a hang. Startup counts because one
 call is one process: a plugin with an expensive runtime spends part of its
-budget before it reads the request, and a plugin author needs to know that is
-the deal rather than discovering it as a flaky timeout. A host MAY use a
+budget before it reads the request, because that startup runs inside the
+window rather than before it. A plugin author needs to know that is the deal
+rather than discovering it as a flaky timeout. A host MAY use a
 shorter bound on `on_retrieve`, where a person is waiting, than on `on_chunk`,
 where a batch is.*
 
