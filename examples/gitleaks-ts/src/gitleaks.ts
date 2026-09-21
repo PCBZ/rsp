@@ -25,6 +25,7 @@ export interface Span {
 export interface Finding {
   RuleID: string;
   StartLine: number;
+  EndLine: number;
   StartColumn: number;
   EndColumn: number;
   Match: string;
@@ -44,34 +45,56 @@ const FOUND = 2;
 /**
  * Byte offsets of each finding, from gitleaks' line and column numbers.
  *
- * gitleaks reports a position as a line plus a column, and its columns are
- * **byte** columns: they come from Go regexp match indices, and a Go string is
- * a byte slice. So the conversion is arithmetic — no encoding knowledge — which
- * is the cleanest evidence available that SPEC.md S1 chose a reachable unit.
+ * Its columns are **byte** columns: they come from Go regexp match indices,
+ * and a Go string is a byte slice. So the conversion is arithmetic — no
+ * encoding knowledge — which is the cleanest evidence available that SPEC.md S1
+ * chose a reachable unit.
  *
- * StartColumn is 1-based and EndColumn is inclusive, so `[start, end)` in S1's
- * half-open form is `lineStart + StartColumn - 1` to `lineStart + EndColumn`.
+ * What the arithmetic has to know is where gitleaks counts a column from, and
+ * it is not the first byte of the line: detect/location.go computes
+ * `startColumn = start - prevNewLine + 1`, where prevNewLine is the index of
+ * the newline *byte* ending the previous line. The first line has no such byte
+ * and counts from zero, so its columns are the 1-based ones anyone would
+ * expect and every later line's are one lower. A finding can also end on a
+ * different line than it starts on — a PEM block does — and EndColumn is
+ * relative to that end line.
+ *
+ * Findings that do not slice `Match` back out are dropped. A span off by one
+ * redacts the wrong bytes and a short one leaves part of the secret in the
+ * chunk, so a position this adapter cannot confirm is not worth reporting —
+ * the caller turns the shortfall into a BLOCK rather than a partial redaction.
  */
 export function toSpans(findings: Finding[], content: string): Span[] {
-  const lineStarts = byteOffsetOfEachLine(content);
+  const bytes = Buffer.from(content, "utf8");
+  const lineStarts = byteOffsetOfEachLine(bytes);
   const spans: Span[] = [];
 
   for (const finding of findings) {
-    const lineStart = lineStarts[finding.StartLine - 1];
-    if (lineStart === undefined) continue; // a line the content does not have
-    spans.push({
-      start: lineStart + finding.StartColumn - 1,
-      end: lineStart + finding.EndColumn,
+    const from = columnOrigin(lineStarts, finding.StartLine);
+    const to = columnOrigin(lineStarts, finding.EndLine);
+    if (from === undefined || to === undefined) continue;
+
+    const span = {
+      start: from + finding.StartColumn - 1,
+      end: to + finding.EndColumn,
       type: finding.RuleID,
-    });
+    };
+    if (bytes.subarray(span.start, span.end).toString("utf8") !== finding.Match) continue;
+    spans.push(span);
   }
   return spans;
 }
 
+/** The byte gitleaks counts this line's columns from, or undefined if absent. */
+function columnOrigin(lineStarts: number[], line: number): number | undefined {
+  if (line === 1) return 0;
+  const start = lineStarts[line - 1];
+  return start === undefined ? undefined : start - 1;
+}
+
 /** Byte offset at which each line begins, counting bytes and not characters. */
-function byteOffsetOfEachLine(content: string): number[] {
+function byteOffsetOfEachLine(bytes: Buffer): number[] {
   const offsets = [0];
-  const bytes = Buffer.from(content, "utf8");
   for (let at = 0; at < bytes.length; at++) {
     if (bytes[at] === 0x0a) offsets.push(at + 1);
   }

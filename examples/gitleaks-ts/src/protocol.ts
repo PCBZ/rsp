@@ -17,7 +17,8 @@ export interface Request {
 
 export type Response =
   | { verdict: "ALLOW" }
-  | { verdict: "REDACT"; spans: Span[]; replacement: string; severity: string };
+  | { verdict: "REDACT"; spans: Span[]; replacement: string; severity: string }
+  | { verdict: "BLOCK"; reason: string; severity: string };
 
 export interface Declaration {
   rsp_version: string;
@@ -53,10 +54,23 @@ export function respond(request: Request): Response | Declaration {
   if (request.hook === "handshake") return declaration();
 
   const content = request.content ?? "";
-  const spans = toSpans(scan(content), content);
+  const findings = scan(content);
+  const spans = toSpans(findings, content);
+
   // ALLOW carries no other field, because the common case should be the cheap
   // one to produce (SPEC.md V2).
-  if (spans.length === 0) return { verdict: "ALLOW" };
+  if (findings.length === 0) return { verdict: "ALLOW" };
+
+  // A finding that produced no span is a secret gitleaks found and this adapter
+  // could not point at. Redacting the others would leave that one in the chunk,
+  // so nothing goes downstream (SPEC.md V4).
+  if (spans.length !== findings.length) {
+    return {
+      verdict: "BLOCK",
+      reason: "gitleaks reported a finding whose position could not be confirmed",
+      severity: "critical",
+    };
+  }
 
   return { verdict: "REDACT", spans, replacement: REPLACEMENT, severity: "critical" };
 }
