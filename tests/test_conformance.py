@@ -29,7 +29,7 @@ PLUGINS = {
     # A wrapper needs its tool as well as its runtime. Both must be present
     # or the cases cannot run, and in CI that is a failure rather than a skip.
     "rsp-gitleaks-ts": (
-        ["node", "--experimental-strip-types", "examples/gitleaks-ts/src/main.ts"],
+        ["node", "examples/gitleaks-ts/src/main.ts"],
         ("node", "gitleaks"),
     ),
 }

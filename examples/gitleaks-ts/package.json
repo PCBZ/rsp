@@ -8,11 +8,11 @@
     "rsp-gitleaks-ts": "./src/main.ts"
   },
   "engines": {
-    "node": ">=22.6"
+    "node": ">=24"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/"
+    "test": "node --test \"test/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

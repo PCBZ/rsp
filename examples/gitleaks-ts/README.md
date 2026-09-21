@@ -22,20 +22,20 @@ test/             the conversion, which is the only part with logic
 
 ```console
 $ echo '{"rsp_version":"0.1","hook":"handshake"}' \
-    | node --experimental-strip-types src/main.ts
+    | node src/main.ts
 {"rsp_version":"0.1","name":"rsp-gitleaks-ts","version":"0.1.0+8.30.1",...}
 ```
 
 Requires `gitleaks` on `PATH`, or `RSP_GITLEAKS` pointing at it. No build step:
-Node runs TypeScript directly from 22.6 onward, and `typescript` and
-`@types/node` are development dependencies for type checking only.
+Node 24 runs TypeScript directly, and `typescript` and `@types/node` are
+development dependencies for type checking only.
 
 ## Configure a host to use it
 
 ```yaml
 plugins:
   - name: gitleaks
-    command: ["node", "--experimental-strip-types", "examples/gitleaks-ts/src/main.ts"]
+    command: ["node", "examples/gitleaks-ts/src/main.ts"]
     hooks: [on_chunk]
 ```
 

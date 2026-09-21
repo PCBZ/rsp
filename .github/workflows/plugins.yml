@@ -44,6 +44,14 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
         with:
           enable-cache: true
+      # Pinned for the same reason as the gitleaks version: which Node runs the
+      # tests is our decision, not the runner image's. Without this the image
+      # supplied Node 22, where the test runner rejected a directory argument.
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: examples/gitleaks-ts/package-lock.json
 
       - name: Install gitleaks
         run: |
