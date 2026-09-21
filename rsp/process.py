@@ -18,7 +18,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-DEFAULT_TIMEOUT = 5.0  # seconds, per call (Q4)
+DEFAULT_TIMEOUT = 5.0  # seconds, per call, startup included (E4)
 DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout; exceeding it is an error (E1)
 _CHUNK = 65536
 
@@ -157,7 +157,11 @@ def invoke(
 
     timed_out = False
     try:
-        proc.wait(timeout=timeout)
+        # Measured from `started`, not from here: the spawn itself costs a few
+        # milliseconds, and E4 bounds the wait from the moment the host starts
+        # the plugin. The plugin's own startup runs inside this window, which
+        # is why it spends the budget rather than extending it.
+        proc.wait(timeout=max(0.0, timeout - (time.monotonic() - started)))
     except subprocess.TimeoutExpired:
         timed_out = True
         _kill_group(pgid)
