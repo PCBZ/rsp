@@ -23,9 +23,6 @@ CASES = sorted(CASE_ROOT.rglob("*.json"))
 # is the claim these entries exist to make rather than assert.
 PLUGINS = {
     "rsp-echo": ([sys.executable, "plugins/rsp-echo/main.py"], (sys.executable,)),
-    # The flag is how Node runs TypeScript without a build step. It is
-    # accepted from 22.6 onward, including versions that no longer need it, so
-    # passing it always avoids caring which Node is installed.
     # A wrapper needs its tool as well as its runtime. Both must be present
     # or the cases cannot run, and in CI that is a failure rather than a skip.
     "rsp-gitleaks-ts": (
@@ -33,6 +30,17 @@ PLUGINS = {
         ("node", "gitleaks"),
     ),
 }
+
+# A wrapper may be pointed at its tool by an environment variable instead of
+# PATH. This check has to look where the plugin will look, or it reports a tool
+# as missing while the plugin goes on to find it.
+TOOL_OVERRIDES = {"gitleaks": "RSP_GITLEAKS"}
+
+
+def _installed(tool: str) -> bool:
+    override = os.environ.get(TOOL_OVERRIDES.get(tool, ""))
+    return shutil.which(override or tool) is not None
+
 
 # Toolchains belong to CI, not to a contributor's machine. Locally a missing
 # one skips its cases; here it fails, because a silently skipped plugin proves
@@ -50,7 +58,7 @@ def test_case(path: pathlib.Path, escaped: bool) -> None:
     offsets that are wrong by two — invisibly, until content leaves the BMP."""
     case = json.loads(path.read_text())
     command, tools = PLUGINS[case["plugin"]]
-    if missing := [tool for tool in tools if shutil.which(tool) is None]:
+    if missing := [tool for tool in tools if not _installed(tool)]:
         message = f"not installed: {', '.join(missing)}"
         pytest.fail(message) if REQUIRED else pytest.skip(message)
 

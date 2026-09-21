@@ -30,7 +30,16 @@ export interface Finding {
   Match: string;
 }
 
-export const GITLEAKS = process.env.RSP_GITLEAKS ?? "gitleaks";
+/** Read per call, not once at import, so a test can point it elsewhere. */
+export function binary(): string {
+  return process.env.RSP_GITLEAKS ?? "gitleaks";
+}
+
+/**
+ * The exit code gitleaks is told to use for "found something", so that it is
+ * distinct from the code it uses for its own failures.
+ */
+const FOUND = 2;
 
 /**
  * Byte offsets of each finding, from gitleaks' line and column numbers.
@@ -71,13 +80,23 @@ function byteOffsetOfEachLine(content: string): number[] {
 
 /**
  * Run the binary once, synchronously: one request, one answer, exit. There is
- * nothing to overlap, and the exit status is deliberately ignored — gitleaks
- * exits 1 when it finds something, which is a failure for a CI gate and a
- * success for us.
+ * nothing to overlap.
+ *
+ * The exit status is the whole reason this function exists. A gitleaks that
+ * cannot run — bad config, unwritable report path — writes nothing to stdout,
+ * which is exactly what a clean chunk produces. Reading only the report would
+ * turn every such failure into an ALLOW, so this throws instead: the plugin
+ * dies without answering, and the host's error path blocks the chunk (E1, D3).
  */
 function run(args: string[], input: string): string {
-  const { stdout, error } = spawnSync(GITLEAKS, args, { input, encoding: "utf8" });
+  const { stdout, stderr, status, error } = spawnSync(binary(), args, {
+    input,
+    encoding: "utf8",
+  });
   if (error) throw error;
+  if (status !== 0 && status !== FOUND) {
+    throw new Error(`gitleaks exited ${status}: ${stderr.trim()}`);
+  }
   return stdout.trim();
 }
 
@@ -88,9 +107,20 @@ export function version(): string {
 
 /** Findings for one chunk. An empty report means nothing was found. */
 export function scan(content: string): Finding[] {
-  // --no-banner keeps the protocol channel clean.
+  // --no-banner keeps stdout to the report alone; "-" is gitleaks' own spelling
+  // of stdout, and /dev/stdout is not: gitleaks checks the report path is
+  // writable before it scans, and opening that file fails.
   const report = run(
-    ["stdin", "--no-banner", "--report-format", "json", "--report-path", "/dev/stdout"],
+    [
+      "stdin",
+      "--no-banner",
+      "--report-format",
+      "json",
+      "--report-path",
+      "-",
+      "--exit-code",
+      String(FOUND),
+    ],
     content,
   );
   return report === "" ? [] : (JSON.parse(report) as Finding[]);
