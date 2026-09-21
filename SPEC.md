@@ -294,13 +294,13 @@ short-circuits — is **not specified here**. No call site exercises it yet.
 
 ## 10. Fixture coverage
 
-Nine of the normative clauses have a conformance case. The rest do not, and
+Eleven of the normative clauses have a conformance case. The rest do not, and
 this section exists so that the gap is a stated position rather than an
 oversight.
 
-| Covered | R1, T2, T3, H1, M2, V1, V2, V3, S1, S2 |
+| Covered | R1, T2, T3, H1, H2, M2, V1, V2, V3, S1, S2 |
 |---|---|
-| **Not yet** | T1, H2, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, E4, E5, V4 |
+| **Not yet** | T1, H3, H4, K1, K2, M1, S3, S4, S5, S6, S7, E1, E2, E3, E4, E5, V4 |
 
 Everything uncovered is a requirement on the **host**, and no plugin-side case
 can prove it: not that blocked content never reached storage, not that an

@@ -39,11 +39,18 @@ reviews:
         does not exist yet — do not suggest stubbing it, making it runnable, or
         adding tests for it.
 
-    - path: 'plugins/**'
+    - path: '{plugins,examples}/**'
       instructions: >-
         Adapters wrap unmodified upstream binaries and stay under 80 lines. Flag
         detection logic the wrapped tool already performs. One JSON object on
         stdout per call; diagnostics on stderr.
+
+    - path: 'examples/**/*.ts'
+      instructions: >-
+        Position arithmetic must produce byte offsets into the UTF-8 encoding of
+        the content, never string indices — flag any use of .length, .slice, or
+        .indexOf on a string where an offset is being computed. The conversion
+        functions must stay callable without the wrapped binary installed.
 
     - path: 'SPEC.md'
       instructions: >-
@@ -51,8 +58,17 @@ reviews:
         clause without a Rationale.
 
   tools:
+    # One entry per language present in the tree. The LLM review is
+    # language-agnostic; these are not.
     ruff:
       enabled: true          # skipped automatically once ruff runs in CI
+    oxc:
+      enabled: true          # TypeScript, no config file of its own to keep
+    biome:
+      enabled: true
+    eslint:
+      enabled: false         # would mean an eslint config and a dev dependency
+                             # for a hundred lines of example code
     shellcheck:
       enabled: true
     actionlint:

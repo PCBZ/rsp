@@ -7,23 +7,57 @@ source present — so nothing here imports rsp.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
 import pytest
 
-CASES = sorted((pathlib.Path(__file__).parent.parent / "conformance" / "cases").glob("*.json"))
-PLUGINS = {"rsp-echo": [sys.executable, "plugins/rsp-echo/main.py"]}
+ROOT = pathlib.Path(__file__).parent.parent
+CASE_ROOT = ROOT / "conformance" / "cases"
+CASES = sorted(CASE_ROOT.rglob("*.json"))
+
+# A plugin is a command. What it is written in is its author's business, which
+# is the claim these entries exist to make rather than assert.
+PLUGINS = {
+    "rsp-echo": ([sys.executable, "plugins/rsp-echo/main.py"], (sys.executable,)),
+    # The flag is how Node runs TypeScript without a build step. It is
+    # accepted from 22.6 onward, including versions that no longer need it, so
+    # passing it always avoids caring which Node is installed.
+    # A wrapper needs its tool as well as its runtime. Both must be present
+    # or the cases cannot run, and in CI that is a failure rather than a skip.
+    "rsp-gitleaks-ts": (
+        ["node", "--experimental-strip-types", "examples/gitleaks-ts/src/main.ts"],
+        ("node", "gitleaks"),
+    ),
+}
+
+# Toolchains belong to CI, not to a contributor's machine. Locally a missing
+# one skips its cases; here it fails, because a silently skipped plugin proves
+# nothing.
+REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
 
 
-@pytest.mark.parametrize("path", CASES, ids=lambda p: p.stem)
-def test_case(path: pathlib.Path) -> None:
+@pytest.mark.parametrize("escaped", [False, True], ids=["utf8", "escaped"])
+@pytest.mark.parametrize(
+    "path", CASES, ids=lambda p: p.relative_to(CASE_ROOT).as_posix().removesuffix(".json")
+)
+def test_case(path: pathlib.Path, escaped: bool) -> None:
+    """Both encodings, because JSON permits either. This host sends raw UTF-8,
+    but another may escape, and a plugin decoding surrogate pairs wrong reports
+    offsets that are wrong by two — invisibly, until content leaves the BMP."""
     case = json.loads(path.read_text())
+    command, tools = PLUGINS[case["plugin"]]
+    if missing := [tool for tool in tools if shutil.which(tool) is None]:
+        message = f"not installed: {', '.join(missing)}"
+        pytest.fail(message) if REQUIRED else pytest.skip(message)
+
     try:
         proc = subprocess.run(
-            PLUGINS[case["plugin"]],
-            input=json.dumps(case["request"]),
+            command,
+            input=json.dumps(case["request"], ensure_ascii=escaped),
             capture_output=True,
             text=True,
             check=False,
@@ -42,7 +76,17 @@ def test_case(path: pathlib.Path) -> None:
     # object on stdout and nothing else. Checking it per-case let the other
     # nine accept a plugin that printed extra.
     assert len(lines) == 1, f"expected exactly one object on stdout, got {len(lines)}"
-    assert json.loads(lines[0]) == case["expect"]["response"]
+    got = json.loads(lines[0])
+
+    if declaration := case["expect"].get("declaration"):
+        # A wrapper's version carries the wrapped tool's, which no case can
+        # know in advance, so the fields a host acts on are asserted exactly
+        # and the version by prefix.
+        for field, value in declaration.items():
+            assert got[field] == value, field
+        assert got["version"].startswith(case["expect"]["version_prefix"])
+    else:
+        assert got == case["expect"]["response"]
 
     if case["expect"].get("diagnostics_on_stderr"):
         assert proc.stderr, "this plugin emits diagnostics; they belong on stderr (T2)"

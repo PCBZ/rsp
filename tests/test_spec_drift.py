@@ -16,10 +16,18 @@ SPEC = (ROOT / "SPEC.md").read_text()
 CLAUSES = dict(
     re.findall(r"\*\*([A-Z]+\d+)\.\*\*(.*?)(?=\n\*\*[A-Z]+\d+\.\*\*|\n---|\n## )", SPEC, re.DOTALL)
 )
-CASES = {
-    p.stem: json.loads(p.read_text())
-    for p in sorted((ROOT / "conformance" / "cases").glob("*.json"))
-}
+# rglob, not glob: cases live in subdirectories once a second plugin has its
+# own set, and a guard that cannot see them reports green while the coverage
+# table goes stale.
+CASE_ROOT = ROOT / "conformance" / "cases"
+ALL_CASES = [
+    (p.relative_to(CASE_ROOT).as_posix(), json.loads(p.read_text()))
+    for p in sorted(CASE_ROOT.rglob("*.json"))
+]
+# Keyed by stem for the fixture references in SPEC.md, which name a case rather
+# than a path. Coverage is counted from ALL_CASES instead, because two
+# directories may hold a case of the same name and a dict would drop one.
+CASES = {pathlib.Path(name).stem: case for name, case in ALL_CASES}
 OPEN_QUESTIONS = set(re.findall(r"\| (Q\d) \|", SPEC[SPEC.find("## 9. Open questions") :]))
 
 # R1 is proved by rsp-echo existing at all, not by a case file.
@@ -60,9 +68,9 @@ def test_no_comment_cites_a_settled_question(source: pathlib.Path) -> None:
         assert ref in OPEN_QUESTIONS, f"{source.name} cites {ref}, which is no longer open"
 
 
-@pytest.mark.parametrize("name", CASES)
-def test_every_case_names_a_clause_the_spec_defines(name: str) -> None:
-    for clause in clauses_in(CASES[name]["clause"]):
+@pytest.mark.parametrize(("name", "case"), ALL_CASES, ids=[name for name, _ in ALL_CASES])
+def test_every_case_names_a_clause_the_spec_defines(name: str, case: dict) -> None:
+    for clause in clauses_in(case["clause"]):
         assert clause in CLAUSES, f"case {name} claims a clause the spec does not define"
 
 
@@ -105,6 +113,6 @@ def test_the_on_error_values_match_the_spec() -> None:
 
 def test_coverage_table_matches_the_cases_on_disk() -> None:
     claimed = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))
-    actual = {c for case in CASES.values() for c in clauses_in(case["clause"])}
+    actual = {c for _, case in ALL_CASES for c in clauses_in(case["clause"])}
     assert actual - claimed == set(), "cases cover clauses §10 still lists as uncovered"
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"

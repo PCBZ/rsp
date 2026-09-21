@@ -1,0 +1,4 @@
+{ "name": "clean", "clause": "V2", "plugin": "rsp-gitleaks-ts",
+  "note": "ALLOW carries no other field (V2).",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "Deployment notes. Nothing sensitive in this paragraph." },
+  "expect": { "response": { "verdict": "ALLOW" } } }

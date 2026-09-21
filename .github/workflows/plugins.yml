@@ -1,0 +1,71 @@
+name: Plugins
+
+# Separate from CI on purpose. These jobs install other people's tools, and a
+# failure here can mean upstream changed rather than we did — a distinction
+# worth keeping out of the workflow that answers "is this commit sound?".
+#
+# The schedule is the point of that separation: gitleaks adding or retiring a
+# rule changes a verdict for content that has not changed, and nothing in a
+# pull request would reveal it.
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "examples/**"
+      - "conformance/**"
+      - "tests/test_conformance.py"
+      - ".github/workflows/plugins.yml"
+  pull_request:
+    paths: *paths
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugins-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned, because its rules decide verdicts: a bump is a change to our
+  # expected values and should be a deliberate commit, not a surprise.
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  gitleaks-ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          enable-cache: true
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo install -m 755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      # The plugin's own suite: the coordinate conversion, which needs no
+      # binary, and the types.
+      - name: Unit tests and types
+        working-directory: examples/gitleaks-ts
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
+      # The protocol cases, fed to the plugin across a real process boundary.
+      # REQUIRE turns a missing toolchain into a failure: a silently skipped
+      # plugin proves nothing, and this is the workflow that has the tools.
+      - name: Conformance cases
+        run: uv run --frozen pytest tests/test_conformance.py -q
+        env:
+          RSP_REQUIRE_ALL_PLUGINS: "1"

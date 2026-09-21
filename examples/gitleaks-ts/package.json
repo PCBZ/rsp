@@ -1,0 +1,21 @@
+{
+  "name": "rsp-gitleaks-ts",
+  "version": "0.1.0",
+  "description": "An RSP plugin in TypeScript: wraps the unmodified gitleaks binary",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "rsp-gitleaks-ts": "./src/main.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^5.7.2"
+  }
+}
