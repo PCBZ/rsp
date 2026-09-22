@@ -20,10 +20,10 @@ ROOT = pathlib.Path(__file__).parent.parent
 class Implementation:
     """A plugin: how to run it from source, and what that needs installed.
 
-    Every entry can also be pointed at something already built, with
-    `RSP_PLUGIN_GITLEAKS_GO` and friends. Only Go needs it today — `go run` recompiles on every
-    invocation and the corpus suite makes four hundred — but the escape hatch
-    belongs to all of them rather than to the language that asked first.
+    Any entry can be pointed at something already built, with
+    `RSP_PLUGIN_<NAME>`. Only Go needs it today — `go run` recompiles on every
+    invocation and the corpus suite makes four hundred — but the hatch belongs
+    to all of them rather than to the language that asked first.
     """
 
     name: str
