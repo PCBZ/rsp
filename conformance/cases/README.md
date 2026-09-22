@@ -27,6 +27,23 @@ cases named `rsp-gitleaks-ts` until a second adapter over the same tool existed,
 at which point seven case files asserting nothing about TypeScript could only be
 run against TypeScript.
 
+## How the runner finds a plugin
+
+Each one ships a `conformance.json` beside its source:
+
+```json
+{ "name": "rsp-gitleaks-go", "role": "gitleaks",
+  "source": ["go", "run", "-C", "{dir}", "."],
+  "toolchain": ["go"], "wraps": ["gitleaks"] }
+```
+
+`{dir}` is the directory the file is in. An adapter in a new language is a new
+directory; the runner changes not at all.
+
+**This file is a convention of this kit, not part of RSP.** A plugin cannot
+declare how to start it — you have to start it to hear the declaration — so
+that knowledge lives in configuration, which is the host's business.
+
 ## Two kinds of case, one of which does not exist yet
 
 Every case here is a **plugin case**: a request, and the response a conforming

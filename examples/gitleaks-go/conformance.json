@@ -1,0 +1,3 @@
+{ "name": "rsp-gitleaks-go", "role": "gitleaks",
+  "source": ["go", "run", "-C", "{dir}", "."],
+  "toolchain": ["go"], "wraps": ["gitleaks"] }

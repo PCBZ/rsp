@@ -1,4 +1,9 @@
-"""Which plugins exist, what runs them, and what a case is allowed to name.
+"""Which plugins exist, found rather than listed.
+
+Each one ships a `conformance.json` saying what runs it, so adding an adapter
+in a new language is a new directory and no change here. That file is a
+convention of this kit, not part of the protocol: a plugin cannot declare how
+to start it, because you have to start it to hear the declaration.
 
 A case names a role, not an implementation: `gitleaks` is any adapter over that
 binary, so one case holds for all of them. Nothing here imports `rsp` — the
@@ -7,6 +12,7 @@ conformance harness has to run with the runtime source absent.
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import shutil
@@ -64,29 +70,27 @@ def _resolve(tool: str) -> str | None:
     return shutil.which(override or tool)
 
 
-REGISTRY = (
-    Implementation(
-        name="rsp-echo",
-        role="echo",
-        source=(sys.executable, str(ROOT / "plugins/rsp-echo/main.py")),
-        toolchain=(sys.executable,),
-    ),
-    Implementation(
-        name="rsp-gitleaks-ts",
-        role="gitleaks",
-        source=("node", str(ROOT / "examples/gitleaks-ts/src/main.ts")),
-        toolchain=("node",),
-        wraps=("gitleaks",),
-    ),
-    Implementation(
-        name="rsp-gitleaks-go",
-        role="gitleaks",
-        # -C, because `go run <dir>` resolves the package against the working
-        # directory's module and the repository root is not one.
-        source=("go", "run", "-C", str(ROOT / "examples/gitleaks-go"), "."),
-        toolchain=("go",),
-        wraps=("gitleaks",),
-    ),
+MANIFEST = "conformance.json"
+
+
+def _load(path: pathlib.Path) -> Implementation:
+    """One manifest. `{dir}` is where it lives and `{python}` is this
+    interpreter, so a command works from any working directory."""
+    declared = json.loads(path.read_text())
+    fill = {"dir": str(path.parent), "python": sys.executable}
+    return Implementation(
+        name=declared["name"],
+        role=declared["role"],
+        source=tuple(token.format(**fill) for token in declared["source"]),
+        toolchain=tuple(token.format(**fill) for token in declared["toolchain"]),
+        wraps=tuple(declared.get("wraps", ())),
+    )
+
+
+REGISTRY = tuple(
+    _load(path)
+    for path in sorted(ROOT.glob(f"plugins/*/{MANIFEST}"))
+    + sorted(ROOT.glob(f"examples/*/{MANIFEST}"))
 )
 
 

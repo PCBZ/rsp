@@ -1,0 +1,3 @@
+{ "name": "rsp-echo", "role": "echo",
+  "source": ["{python}", "{dir}/main.py"],
+  "toolchain": ["{python}"] }
