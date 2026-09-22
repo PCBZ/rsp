@@ -1,6 +1,5 @@
-// One JSON object in, one out, then exit (T1). Diagnostics go to stderr:
-// stdout is the protocol channel and a stray line on it is indistinguishable
-// from a response (T2).
+// One JSON object in, one out, then exit (T1). Diagnostics go to stderr: a
+// stray line on stdout is indistinguishable from a response (T2).
 package main
 
 import (
@@ -25,9 +24,8 @@ func answer() error {
 	if err != nil {
 		return err
 	}
-	// SetEscapeHTML(false): the default turns < and & into escapes, which is
-	// valid JSON a host would decode back, but the wire should carry what the
-	// plugin meant.
+	// The default escapes < and &, which a host decodes back, but the wire
+	// should carry what the plugin meant.
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(response)

@@ -2,8 +2,7 @@ package main
 
 import "fmt"
 
-// Request is what a host sends. Unknown fields are ignored, which
-// encoding/json does by default (D8).
+// Request is what a host sends. encoding/json ignores unknown fields (D8).
 type Request struct {
 	RSPVersion string         `json:"rsp_version"`
 	Hook       string         `json:"hook"`
@@ -11,8 +10,7 @@ type Request struct {
 	Metadata   map[string]any `json:"metadata"`
 }
 
-// Response is one of the verdicts this plugin returns. Fields are omitted when
-// empty so that ALLOW carries nothing else (V2).
+// Response omits empty fields, so ALLOW carries nothing else (V2).
 type Response struct {
 	Verdict     string `json:"verdict"`
 	Spans       []Span `json:"spans,omitempty"`
@@ -21,7 +19,7 @@ type Response struct {
 	Severity    string `json:"severity,omitempty"`
 }
 
-// Declaration is what this plugin tells a host about itself (H2).
+// Declaration is what this plugin says it is (H2).
 type Declaration struct {
 	RSPVersion    string   `json:"rsp_version"`
 	Name          string   `json:"name"`
@@ -32,10 +30,8 @@ type Declaration struct {
 
 const replacement = "[REDACTED:secret]"
 
-// declare reports the plugin's identity, carrying the binary's version in its
-// own: a cache key contains the plugin version (D4), and for a wrapper it is
-// the wrapped tool that decides verdicts, so gitleaks gaining a rule has to
-// change this string.
+// declare carries the binary's version in its own: for a wrapper it is the
+// tool that decides verdicts, and the cache is keyed on this string (D4).
 func declare() (Declaration, error) {
 	tool, err := version()
 	if err != nil {
@@ -50,7 +46,6 @@ func declare() (Declaration, error) {
 	}, nil
 }
 
-// respond answers one request.
 func respond(request Request) (any, error) {
 	if request.Hook == "handshake" {
 		return declare()
@@ -65,9 +60,8 @@ func respond(request Request) (any, error) {
 	}
 
 	spans := toSpans(findings, request.Content)
-	// A finding that produced no span is a secret gitleaks found and this
-	// adapter could not point at. Redacting the others would leave that one in
-	// the chunk, so nothing goes downstream (V4).
+	// A finding with no span is a secret we cannot point at; redacting the rest
+	// would leave it in the chunk (V4).
 	if len(spans) != len(findings) {
 		return Response{
 			Verdict:  "BLOCK",

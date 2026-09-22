@@ -1,10 +1,8 @@
-// The conversion from gitleaks' line-and-column positions to the byte offsets
-// S1 requires. No binary needed: the input is a report, which is data.
+// Line-and-column to byte offsets. No binary needed: a report is data.
 //
-// Every report below is transcribed from what gitleaks 8.30.1 actually
-// emitted for that content. Inventing the numbers is how the TypeScript
-// adapter's end offset came to be wrong for anything spanning two lines — a
-// fabricated report agrees with whatever the code assumes.
+// Every report below is transcribed from what gitleaks 8.30.1 emitted for that
+// content. Invented numbers agree with whatever the code assumes, which is how
+// the TypeScript adapter's end offset was wrong for two-line findings.
 package main
 
 import (
@@ -42,16 +40,15 @@ func TestToSpans(t *testing.T) {
 			want:    Span{Start: 12, End: 32, Type: "aws-access-token"},
 		},
 		{
-			// 密钥 is two characters and six bytes, so a character index says 3.
+			// 密钥 is two characters and six bytes; a character index says 3.
 			name:    "after multi-byte text on the same line",
 			content: "密钥 " + key + " 在后面",
 			finding: aws(1, 1, 8, 27),
 			want:    Span{Start: 7, End: 27, Type: "aws-access-token"},
 		},
 		{
-			// Column 11 for a key at byte 16 of a line starting at 7: the
-			// columns run from the newline byte, so they are one lower than a
-			// line-relative column would be.
+			// Column 11 for a key at byte 16 of a line starting at 7: columns
+			// run from the newline byte, one lower than line-relative.
 			name:    "on a later line",
 			content: "header\nexport K=" + key + "\n",
 			finding: aws(2, 2, 11, 30),
@@ -64,10 +61,8 @@ func TestToSpans(t *testing.T) {
 			want:    Span{Start: 16, End: 36, Type: "aws-access-token"},
 		},
 		{
-			// A PEM block is the ordinary case for a finding that ends on a
-			// different line than it starts on. Read against the start line the
-			// end lands 141 bytes early, redacting the key's first line and
-			// publishing the rest.
+			// Read against the start line, the end lands 141 bytes early:
+			// the key's first line redacted, the rest published.
 			name:    "spanning four lines",
 			content: "cfg:\n" + pem + "\ntrailing\n",
 			finding: Finding{
@@ -87,8 +82,7 @@ func TestToSpans(t *testing.T) {
 			if spans[0] != c.want {
 				t.Errorf("got %+v, want %+v", spans[0], c.want)
 			}
-			// The only assertion that matters: an offset is useful exactly
-			// when it indexes the bytes the host is holding.
+			// An offset is useful exactly when it indexes the host's bytes.
 			if sliced := c.content[spans[0].Start:spans[0].End]; sliced != c.finding.Match {
 				t.Errorf("sliced %q, want %q", sliced, c.finding.Match)
 			}
@@ -122,8 +116,7 @@ func TestToSpansDropsWhatItCannotConfirm(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			// Dropping is not letting it through: respond turns a finding with
-			// no span into a BLOCK.
+			// Dropping is not passing: respond turns this into a BLOCK.
 			if spans := toSpans([]Finding{c.finding}, c.content); len(spans) != 0 {
 				t.Errorf("got %+v, want none", spans)
 			}

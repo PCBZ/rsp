@@ -1,7 +1,5 @@
-// Package main wraps the gitleaks binary. Same tool, same two public
-// interfaces as the TypeScript plugin — the `gitleaks stdin` command and the
-// field names of its JSON report — so the two are comparable answers to the
-// same question rather than two programs that happen to detect secrets.
+// Package main wraps the gitleaks binary, through the same two interfaces as
+// the TypeScript plugin: the `gitleaks stdin` command and its report's fields.
 package main
 
 import (
@@ -11,18 +9,15 @@ import (
 	"strings"
 )
 
-// Span is a range to mask, in byte offsets into the UTF-8 encoding.
-//
-// A Go string is a byte slice, so content[start:end] already means what S1
-// says it means. This is the language D6 was chosen for: nothing converts.
+// Span is a range to mask, in byte offsets (S1). A Go string is a byte slice,
+// so content[start:end] already means that: nothing converts.
 type Span struct {
 	Start int    `json:"start"`
 	End   int    `json:"end"`
 	Type  string `json:"type"`
 }
 
-// Finding is the part of a gitleaks report this adapter reads. The report
-// carries more — commit, author, entropy — none of which a chunk has.
+// Finding is the part of a gitleaks report a chunk can have.
 type Finding struct {
 	RuleID      string
 	StartLine   int
@@ -32,8 +27,7 @@ type Finding struct {
 	Match       string
 }
 
-// found is the exit code gitleaks is told to use for "found something", so it
-// is distinct from the code it uses for its own failures.
+// found separates "found something" from gitleaks failing, which shares 1.
 const found = 2
 
 func binary() string {
@@ -43,17 +37,13 @@ func binary() string {
 	return "gitleaks"
 }
 
-// toSpans converts gitleaks' line and column numbers into byte offsets.
+// toSpans converts gitleaks' positions into byte offsets.
 //
-// Its columns are byte columns, counted from the newline byte that ends the
-// previous line rather than from the first byte of the line: detect/location.go
-// computes startColumn = start - prevNewLine + 1, and the first line, having no
-// such byte, counts from zero. A finding can also end on a later line than it
-// starts on, and EndColumn belongs to that line.
-//
-// A finding whose offsets do not slice Match back out is dropped: a wrong span
-// redacts the wrong bytes, and a short one leaves part of the secret behind.
-// The caller turns a dropped finding into a BLOCK.
+// Its columns count from the newline byte ending the previous line, not from
+// the line's first byte, so only line one matches the 1-based column anyone
+// assumes. EndColumn belongs to EndLine, which differs whenever a finding
+// spans lines. Anything that does not slice Match back out is dropped, and the
+// caller turns a dropped finding into a BLOCK.
 func toSpans(findings []Finding, content string) []Span {
 	origins := columnOrigins(content)
 	spans := make([]Span, 0, len(findings))
@@ -76,7 +66,7 @@ func toSpans(findings []Finding, content string) []Span {
 	return spans
 }
 
-// origin reports the byte gitleaks counts this line's columns from.
+// origin is the byte gitleaks counts this line's columns from.
 func origin(origins []int, line int) (int, bool) {
 	if line == 1 {
 		return 0, true
@@ -87,7 +77,7 @@ func origin(origins []int, line int) (int, bool) {
 	return origins[line-1] - 1, true
 }
 
-// columnOrigins gives the byte offset at which each line begins.
+// columnOrigins is where each line begins.
 func columnOrigins(content string) []int {
 	starts := []int{0}
 	for at := 0; at < len(content); at++ {
@@ -98,11 +88,9 @@ func columnOrigins(content string) []int {
 	return starts
 }
 
-// run executes the binary once. The exit status is the reason this function
-// exists: a gitleaks that cannot run writes nothing to stdout, which is what a
-// clean chunk produces, so reading only the report would turn every failure
-// into an ALLOW. Errors reach main, which exits without answering, and the
-// host's error path blocks the chunk (E1, D3).
+// run executes the binary once. The status is why this exists: a gitleaks that
+// could not run prints nothing, exactly like a clean chunk, so ignoring it
+// would turn every failure into an ALLOW (E1, D3).
 func run(args []string, input string) (string, error) {
 	cmd := exec.Command(binary(), args...)
 	cmd.Stdin = strings.NewReader(input)
@@ -116,16 +104,15 @@ func run(args []string, input string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// version asks the binary what it is, so a cache key can include it (D4).
+// version is carried in the declaration so a cache key includes it (D4).
 func version() (string, error) {
 	return run([]string{"version"}, "")
 }
 
-// scan returns the findings for one chunk. An empty report means nothing.
+// scan returns the findings for one chunk.
 func scan(content string) ([]Finding, error) {
-	// --no-banner keeps stdout to the report alone; "-" is gitleaks' own
-	// spelling of stdout, and /dev/stdout is not: it checks the report path is
-	// writable before scanning, and opening that file fails.
+	// "-" is gitleaks' own spelling of stdout; /dev/stdout fails its writability
+	// pre-check. --no-banner keeps stdout to the report alone.
 	report, err := run([]string{
 		"stdin", "--no-banner", "--report-format", "json",
 		"--report-path", "-", "--exit-code", "2",

@@ -1,6 +1,5 @@
-// Which report becomes which verdict, driven through a stand-in binary so the
-// interesting case can be provoked on demand: a finding whose position the
-// adapter cannot confirm.
+// Which report becomes which verdict, through a stand-in binary so the
+// interesting case can be provoked: a finding that cannot be placed.
 package main
 
 import (
@@ -59,8 +58,8 @@ func TestRedactsWhatItCanPlace(t *testing.T) {
 }
 
 func TestBlocksRatherThanRedactingWhatItCanPlace(t *testing.T) {
-	// Two findings, one mislocated. Reporting only the good span would publish
-	// the other secret; an ALLOW would publish both.
+	// One of two findings mislocated: reporting the good span publishes the
+	// other secret, and ALLOW publishes both.
 	content := "deploy with " + key + " today"
 	fake(t, `[{"RuleID":"aws-access-token","StartLine":1,"EndLine":1,`+
 		`"StartColumn":13,"EndColumn":32,"Match":"`+key+`"},`+
@@ -86,8 +85,7 @@ func TestBlocksOnAFindingWithNoPosition(t *testing.T) {
 }
 
 func TestRefusesToAnswerWhenTheBinaryFails(t *testing.T) {
-	// A gitleaks that could not run writes nothing, which is what a clean
-	// chunk produces. Returning ALLOW here would be a silent pass (E1, D3).
+	// Nothing on stdout, exactly like a clean chunk (E1, D3).
 	fake(t, "", "1")
 
 	if _, err := respond(Request{Hook: "on_chunk", Content: key}); err == nil {
@@ -104,8 +102,7 @@ func TestRefusesToAnswerOnAReportThatIsNotAReport(t *testing.T) {
 }
 
 func TestDeclaresTheWrappedToolsVersionInItsOwn(t *testing.T) {
-	// D4: a cache keyed on the adapter's version alone would keep serving
-	// verdicts from a ruleset that has since changed.
+	// D4: the adapter's version alone would outlive the ruleset it judged with.
 	fake(t, "8.30.1", "0")
 
 	answer, err := respond(Request{Hook: "handshake"})

@@ -1,11 +1,8 @@
-"""Every case in conformance/cases, run against every plugin that can answer it.
+"""Every case in conformance/cases, against every plugin that can answer it.
 
-A case names a role — `gitleaks` rather than `rsp-gitleaks-ts` — so the same
-case runs against each implementation of that role and the answers have to
-match. A case that named a language could only ever test one.
-
-A stand-in for the standalone kit, which has to run without the runtime
-source present — so nothing here imports rsp.
+A case names a role, so it runs against each implementation of that role and
+the answers have to match; one that named a language could only test one. A
+stand-in for the standalone kit, so nothing here imports rsp.
 """
 
 from __future__ import annotations
@@ -23,8 +20,8 @@ ROOT = pathlib.Path(__file__).parent.parent
 CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
 
-# One parameter per case and implementation, resolved at collection so a
-# missing plugin is a visible skip per case rather than a silently shorter run.
+# Resolved at collection, so a missing plugin is a visible skip per case
+# rather than a silently shorter run.
 RUNS = [
     (path, implementation)
     for path in CASES
@@ -44,13 +41,12 @@ def test_case(
     escaped: bool,
     record_property: Callable[[str, object], None],
 ) -> None:
-    """Both encodings, because JSON permits either. This host sends raw UTF-8,
-    but another may escape, and a plugin decoding surrogate pairs wrong reports
-    offsets that are wrong by two — invisibly, until content leaves the BMP."""
+    """Both encodings, because JSON permits either: a plugin decoding
+    surrogate pairs wrong is off by two, invisibly, until content leaves the
+    BMP."""
     path, implementation = run
     case = json.loads(path.read_text())
-    # The clause and the implementation are what make the report a matrix
-    # rather than a list of names (see conftest.py).
+    # What makes the report a matrix rather than a list (conftest.py).
     record_property("clause", case["clause"])
     record_property("plugin", implementation.name)
     command = list(implementation.command)

@@ -1,26 +1,14 @@
-"""The adapter, against the corpus its own tool is tested with.
+"""The adapters, against the corpus gitleaks tests itself with.
 
-Not a detection benchmark. Precision and recall belong to gitleaks, which the
-plugin wraps unmodified precisely so that detection quality is never RSP's
-claim — an F1 here would be a number nobody in this repository can act on.
+Not a detection benchmark: precision and recall would measure gitleaks, which
+these plugins wrap unmodified so that detection quality is never RSP's claim.
+What is ours is the translation, and upstream's files are shapes nobody here
+chose — the hand-written fixtures are, and two position bugs got past them.
 
-What is ours is the translation: gitleaks reports a line and a column, S1 wants
-a byte offset, and every file below is a chance for that arithmetic to be
-wrong. The five hand-written span fixtures are shapes somebody chose, and two
-position bugs got past them; upstream's test files are shapes nobody chose,
-which is the point.
-
-The check is differential. The same binary answers twice — once directly, as
-the oracle, and once through the plugin and the host — and the oracle's command
-is spelled out here rather than imported, so that a change in how the adapter
-invokes gitleaks shows up as a disagreement instead of being mirrored into the
-expectation.
-
-Three properties, none of them a curve:
-
-* content gitleaks finds something in is never allowed through
-* no secret it reported survives in what the host hands on
-* lines it said nothing about come back byte for byte
+Differential: the same binary answers twice, once directly as the oracle and
+once through a plugin and the host. The oracle's command is spelled out rather
+than imported, so a change in how an adapter invokes gitleaks shows up as a
+disagreement instead of being mirrored into the expectation.
 """
 
 from __future__ import annotations
@@ -103,15 +91,9 @@ WINDOW = 16
 
 
 def _windows(secret: str) -> list[str]:
-    """Every window of a secret, or the whole thing when it is shorter than
-    one.
-
-    One character at a time, not one window at a time: sampling at intervals
-    leaves gaps a survivor can sit in. With a stride of eight, sixteen
-    characters surviving from offset four are missed by the window at zero,
-    which needs the first four, and by the window at eight, which needs four
-    past the end.
-    """
+    """Every window, one character apart: sampling at intervals leaves gaps a
+    survivor sits in. At stride eight, sixteen characters surviving from offset
+    four are missed by the window at zero and the one at eight."""
     if len(secret) <= WINDOW:
         return [secret]
     return [secret[at : at + WINDOW] for at in range(len(secret) - WINDOW + 1)]
@@ -128,11 +110,8 @@ _RUNTIMES: dict[str, Runtime] = {}
 
 
 def answer(path: pathlib.Path, implementation: Implementation) -> Answer:
-    """Both answers for one file and one plugin, asked once.
-
-    Four properties read the same pair, and each process this avoids is a
-    gitleaks run — of which there are two per file per implementation.
-    """
+    """Both answers for one file and one plugin, asked once: four properties
+    read the same pair, at two gitleaks runs apiece."""
     key = (path, implementation.name)
     if key not in _ANSWERS:
         content = _text(path)
@@ -154,11 +133,9 @@ def runtime_for(implementation: Implementation) -> Runtime:
 
 @pytest.fixture(autouse=True)
 def _guard_the_environment(request: pytest.FixtureRequest) -> None:
-    """Skip or fail before a test asks anything, and label the report row.
-
-    No clause is recorded: fidelity to the wrapped tool is not something
-    SPEC.md requires of anyone — it is what an adapter owes the tool it wraps.
-    """
+    """Skip or fail before a test asks anything, and label the report row. No
+    clause: fidelity to the wrapped tool is what an adapter owes it, not
+    something SPEC.md requires."""
     callspec = getattr(request.node, "callspec", None)
     implementation = callspec.params.get("implementation") if callspec else None
     if implementation is not None:
@@ -188,11 +165,8 @@ FLOOR = 5
 
 def test_the_corpus_reaches_the_adapter_at_all() -> None:
     """Every property below is conditional on gitleaks reporting something, so
-    a gitleaks that reports nothing — wrong flags, a broken download, a corpus
-    of the wrong directory — turns this file green while checking nothing.
-
-    Stops at the floor rather than counting the corpus: the point is to catch
-    zero, not to pin a number upstream is free to change."""
+    one that reports nothing turns this file green while checking nothing.
+    Stops at the floor: the point is to catch zero."""
     found = 0
     for path in CASES:
         if (text := _text(path)) and _oracle(text):
@@ -210,11 +184,9 @@ def test_the_corpus_reaches_the_adapter_at_all() -> None:
 def test_content_with_a_finding_is_not_allowed(
     path: pathlib.Path, implementation: Implementation
 ) -> None:
-    """The failure this catches is the quiet one: an adapter that reports no
-    span for a finding, or a gitleaks that never ran, both look like clean
-    content. REDACT rather than merely "not ALLOW", because BLOCK here means
-    the adapter could not place a finding it was given — the placement rate
-    this corpus measures, which has to be one."""
+    """An adapter that placed no span and a gitleaks that never ran both look
+    like clean content. REDACT rather than "not ALLOW": BLOCK here means a
+    finding could not be placed, and the placement rate has to be one."""
     _, findings, result = answer(path, implementation)
 
     if not findings:
@@ -231,11 +203,10 @@ def test_content_with_a_finding_is_not_allowed(
 def test_no_reported_secret_survives_redaction(
     path: pathlib.Path, implementation: Implementation
 ) -> None:
-    """The security property, and the reason it is checked in windows rather
-    than whole: a span that covers the first thirty bytes of a private key
-    destroys the exact string while leaving the key readable, so asking whether
-    `Secret` is still a substring passes for a redaction that leaked almost all
-    of it. Every window has to be gone."""
+    """Checked in windows, not whole: a span covering a private key's first
+    thirty bytes destroys the exact string while leaving the key readable, so
+    asking whether `Secret` is still a substring passes a redaction that leaked
+    nearly all of it."""
     _, findings, result = answer(path, implementation)
     if not findings:
         pytest.skip("nothing reported")
@@ -259,15 +230,11 @@ def test_no_reported_secret_survives_redaction(
 def test_lines_without_findings_come_back_unchanged(
     path: pathlib.Path, implementation: Implementation
 ) -> None:
-    """The other half of a misplaced span: it destroys content nobody objected
-    to. Redacting a whole chunk would pass the survival test above.
+    """The other half of a misplaced span: destroying what nobody objected to,
+    which redacting the whole chunk would hide from the test above.
 
-    Checked as a subsequence, in order, one line at a time. Comparing line
-    numbers would be stronger and is not available: a finding spanning four
-    lines becomes one replacement string, so every number after it shifts. A
-    subsequence still catches a line that was altered, dropped, duplicated or
-    moved, which is everything a span can do to a line it should not have
-    touched.
+    A subsequence rather than line numbers, because a four-line finding becomes
+    one replacement string and shifts every number after it.
     """
     content, findings, result = answer(path, implementation)
     if not findings:
@@ -289,15 +256,9 @@ def test_lines_without_findings_come_back_unchanged(
 
 @pytest.mark.parametrize("path", CASES, ids=_ids)
 def test_every_implementation_of_the_role_answers_identically(path: pathlib.Path) -> None:
-    """The claim a second implementation exists to test.
-
-    Two adapters over the same binary must return the same verdict and leave
-    the host holding the same bytes. Anything else means one of them is reading
-    gitleaks' report differently, and a protocol whose implementations disagree
-    is a suggestion.
-
-    Reads the cache the properties above filled, so this costs no processes.
-    """
+    """The claim a second implementation exists to test: two adapters over one
+    binary must return the same verdict and leave the host the same bytes. A
+    protocol whose implementations disagree is a suggestion."""
     installed = [one for one in IMPLEMENTATIONS if one.installed]
     if len(installed) < 2:
         pytest.skip("needs two implementations of the role")

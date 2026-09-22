@@ -1,13 +1,8 @@
 """Which plugins exist, what runs them, and what a case is allowed to name.
 
-A case names a **role**, not an implementation. `gitleaks` means any adapter
-wrapping that binary, so a case written against one of them holds for all of
-them — which is the protocol's whole claim, and was untestable while the case
-files named a language. Two implementations of one role must answer every case
-identically; that is now a thing the suite can check rather than assert.
-
-Nothing here imports `rsp`: the conformance harness has to run with the
-runtime source absent.
+A case names a role, not an implementation: `gitleaks` is any adapter over that
+binary, so one case holds for all of them. Nothing here imports `rsp` — the
+conformance harness has to run with the runtime source absent.
 """
 
 from __future__ import annotations
@@ -40,21 +35,16 @@ class Implementation:
 
 
 def _resolve(tool: str) -> str | None:
-    """Where the plugin will look for a tool, which is where this must look.
-
-    A wrapper can be pointed at its tool by `RSP_<TOOL>`; checking only PATH
-    reports a tool missing while the plugin goes on to find it.
-    """
+    """Where the plugin looks: a wrapper can be pointed at its tool by
+    `RSP_<TOOL>`, and checking only PATH calls it missing while the plugin
+    finds it."""
     override = os.environ.get(f"RSP_{tool.upper().replace('-', '_')}")
     return shutil.which(override or tool)
 
 
 def _go_command() -> tuple[str, ...]:
-    """A built binary when one is offered, `go run` otherwise.
-
-    `go run` recompiles on every invocation, which the corpus suite would pay
-    for four hundred times.
-    """
+    """A built binary when offered: `go run` recompiles per invocation, which
+    the corpus suite would pay for four hundred times."""
     if built := os.environ.get("RSP_GITLEAKS_GO"):
         return (built,)
     return ("go", "run", str(ROOT / "examples/gitleaks-go"))
