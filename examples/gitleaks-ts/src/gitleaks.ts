@@ -79,6 +79,9 @@ export function toSpans(findings: Finding[], content: string): Span[] {
       end: to + finding.EndColumn,
       type: finding.RuleID,
     };
+    // end > start, because a span that masks nothing is not a span and an empty
+    // Match would satisfy the slice check from any pair of offsets.
+    if (span.end <= span.start) continue;
     if (bytes.subarray(span.start, span.end).toString("utf8") !== finding.Match) continue;
     spans.push(span);
   }

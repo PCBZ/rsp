@@ -129,3 +129,14 @@ func TestToSpansOnAnEmptyReport(t *testing.T) {
 		t.Errorf("got %+v, want none", spans)
 	}
 }
+
+func TestToSpansDropsAnEmptyMatch(t *testing.T) {
+	// content[start:end] == "" holds for any pair of equal offsets, including
+	// one inside a rune, so the slice check alone would let this through.
+	empty := Finding{RuleID: "aws-access-token", StartLine: 1, EndLine: 1,
+		StartColumn: 3, EndColumn: 2, Match: ""}
+
+	if spans := toSpans([]Finding{empty}, "密钥"); len(spans) != 0 {
+		t.Errorf("got %+v, want none", spans)
+	}
+}

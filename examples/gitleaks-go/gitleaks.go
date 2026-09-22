@@ -55,7 +55,10 @@ func toSpans(findings []Finding, content string) []Span {
 			continue
 		}
 		span := Span{Start: from + f.StartColumn - 1, End: to + f.EndColumn, Type: f.RuleID}
-		if span.Start < 0 || span.End > len(content) || span.Start > span.End {
+		// End > Start, not >=: a span that masks nothing is not a span, and an
+		// empty Match would otherwise satisfy the slice check below from any
+		// pair of offsets, including one inside a rune.
+		if span.Start < 0 || span.End > len(content) || span.End <= span.Start {
 			continue
 		}
 		if content[span.Start:span.End] != f.Match {

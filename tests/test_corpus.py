@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 from typing import NamedTuple
 
@@ -136,6 +137,12 @@ def _guard_the_environment(request: pytest.FixtureRequest) -> None:
     """Skip or fail before a test asks anything, and label the report row. No
     clause: fidelity to the wrapped tool is what an adapter owes it, not
     something SPEC.md requires."""
+    # The oracle runs the binary directly, so a test with no implementation
+    # parameter still needs it present — the guard test is one.
+    if shutil.which(GITLEAKS) is None:
+        message = f"not installed: {GITLEAKS}"
+        pytest.fail(message) if REQUIRED else pytest.skip(message)
+
     callspec = getattr(request.node, "callspec", None)
     implementation = callspec.params.get("implementation") if callspec else None
     if implementation is not None:
