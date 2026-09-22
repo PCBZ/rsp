@@ -40,8 +40,5 @@ branch = true
 
 [tool.coverage.report]
 # Plugins are subprocesses and never imported, so coverage cannot see them,
-# and conformance/ is data. guards.py imports fine since #7, but constructing
-# it calls Runtime.from_config, which arrives with #16 — remove this line then,
-# and expect the total to drop until the guards have tests of their own.
-omit = ["*/guards.py"]
+# and conformance/ is data.
 exclude_lines = ["if TYPE_CHECKING:", "raise NotImplementedError"]
