@@ -118,8 +118,7 @@ describe("toSpans", () => {
   });
 
   it("drops a finding with an empty match", () => {
-    // Slicing any pair of equal offsets gives "", including a pair inside a
-    // character, so the check below would let this through on its own.
+    // Offsets inside a character, which the slice check alone would accept.
     const finding: Finding = {
       RuleID: "aws-access-token",
       StartLine: 1,

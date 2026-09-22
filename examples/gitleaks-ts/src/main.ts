@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 /**
- * The entry point, and nothing else: read one JSON object from stdin, write
- * one to stdout, exit (SPEC.md T1).
- *
- * Diagnostics would go to stderr. stdout is the protocol channel, and a stray
- * line on it is indistinguishable from a response (SPEC.md T2) — which is why
- * the adapter passes --no-banner to gitleaks.
+ * One JSON object in, one out, then exit (T1). Diagnostics go to stderr: a
+ * stray line on stdout is indistinguishable from a response (T2).
  */
 import { respond, type Request } from "./protocol.ts";
 

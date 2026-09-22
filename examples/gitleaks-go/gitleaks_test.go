@@ -131,8 +131,7 @@ func TestToSpansOnAnEmptyReport(t *testing.T) {
 }
 
 func TestToSpansDropsAnEmptyMatch(t *testing.T) {
-	// content[start:end] == "" holds for any pair of equal offsets, including
-	// one inside a rune, so the slice check alone would let this through.
+	// Offsets inside a rune, which the slice check alone would accept.
 	empty := Finding{RuleID: "aws-access-token", StartLine: 1, EndLine: 1,
 		StartColumn: 3, EndColumn: 2, Match: ""}
 

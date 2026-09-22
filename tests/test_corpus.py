@@ -137,8 +137,7 @@ def _guard_the_environment(request: pytest.FixtureRequest) -> None:
     """Skip or fail before a test asks anything, and label the report row. No
     clause: fidelity to the wrapped tool is what an adapter owes it, not
     something SPEC.md requires."""
-    # The oracle runs the binary directly, so a test with no implementation
-    # parameter still needs it present — the guard test is one.
+    # The oracle runs the binary directly, with or without an implementation.
     if shutil.which(GITLEAKS) is None:
         message = f"not installed: {GITLEAKS}"
         pytest.fail(message) if REQUIRED else pytest.skip(message)

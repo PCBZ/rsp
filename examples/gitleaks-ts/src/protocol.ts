@@ -1,9 +1,6 @@
 /**
- * The protocol side: what a request looks like, what a response must be, and
- * the mapping between them.
- *
- * Kept apart from the adapter so that the shape SPEC.md requires lives in one
- * file, and so someone porting this to another language has one place to look.
+ * The protocol side, kept apart from the adapter so the shape SPEC.md requires
+ * lives in one file — including for whoever ports this to another language.
  */
 import { scan, toSpans, version, type Span } from "./gitleaks.ts";
 
@@ -11,7 +8,7 @@ export interface Request {
   rsp_version?: string;
   hook?: string;
   content?: string;
-  /** Advisory: a plugin may read it and must not require it (SPEC.md M2). */
+  /** Advisory: readable, never required (M2). */
   metadata?: Record<string, unknown>;
 }
 
@@ -31,13 +28,9 @@ export interface Declaration {
 export const REPLACEMENT = "[REDACTED:secret]";
 
 /**
- * What this plugin tells a host about itself (SPEC.md H2).
- *
- * The version carries the binary's, not just the adapter's. A cache key
- * contains the plugin version (D4), and for a wrapper it is the wrapped tool
- * that decides verdicts: gitleaks adding a rule changes the answer for content
- * that has not changed, and a cache keyed on the adapter's version alone would
- * keep serving the old one. Costs one extra call to the binary, once.
+ * What this plugin says it is (H2). The version carries the binary's: for a
+ * wrapper it is the tool that decides verdicts, and the cache is keyed on this
+ * string (D4).
  */
 export function declaration(): Declaration {
   return {
@@ -49,7 +42,6 @@ export function declaration(): Declaration {
   };
 }
 
-/** One request in, one response out. */
 export function respond(request: Request): Response | Declaration {
   if (request.hook === "handshake") return declaration();
 
@@ -57,13 +49,11 @@ export function respond(request: Request): Response | Declaration {
   const findings = scan(content);
   const spans = toSpans(findings, content);
 
-  // ALLOW carries no other field, because the common case should be the cheap
-  // one to produce (SPEC.md V2).
+  // ALLOW carries nothing else: the common case is the cheap one (V2).
   if (findings.length === 0) return { verdict: "ALLOW" };
 
-  // A finding that produced no span is a secret gitleaks found and this adapter
-  // could not point at. Redacting the others would leave that one in the chunk,
-  // so nothing goes downstream (SPEC.md V4).
+  // A finding with no span is a secret we cannot point at; redacting the rest
+  // would leave it in the chunk (V4).
   if (spans.length !== findings.length) {
     return {
       verdict: "BLOCK",
