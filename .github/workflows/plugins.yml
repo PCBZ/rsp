@@ -11,6 +11,10 @@ on:
       - "examples/**"
       - "conformance/**"
       - "tests/**"
+      # The suite here runs the host too, so a runtime or dependency change
+      # reaches it — and this is the only job with the tools to notice.
+      - "rsp/**"
+      - "pyproject.toml"
       - "SPEC.md"
       - ".github/workflows/plugins.yml"
   pull_request:

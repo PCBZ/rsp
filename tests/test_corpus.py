@@ -105,11 +105,18 @@ WINDOW = 16
 
 
 def _windows(secret: str) -> list[str]:
-    """Overlapping slices of a secret, or the whole thing when it is shorter
-    than one window."""
+    """Every window of a secret, or the whole thing when it is shorter than
+    one.
+
+    One character at a time, not one window at a time: sampling at intervals
+    leaves gaps a survivor can sit in. With a stride of eight, sixteen
+    characters surviving from offset four are missed by the window at zero,
+    which needs the first four, and by the window at eight, which needs four
+    past the end.
+    """
     if len(secret) <= WINDOW:
         return [secret]
-    return [secret[at : at + WINDOW] for at in range(0, len(secret) - WINDOW + 1, WINDOW // 2)]
+    return [secret[at : at + WINDOW] for at in range(len(secret) - WINDOW + 1)]
 
 
 class Answer(NamedTuple):
@@ -228,7 +235,15 @@ def test_no_reported_secret_survives_redaction(path: pathlib.Path, runtime: Runt
 @pytest.mark.parametrize("path", CASES, ids=_ids)
 def test_lines_without_findings_come_back_unchanged(path: pathlib.Path, runtime: Runtime) -> None:
     """The other half of a misplaced span: it destroys content nobody objected
-    to. Redacting a whole chunk would pass the survival test above."""
+    to. Redacting a whole chunk would pass the survival test above.
+
+    Checked as a subsequence, in order, one line at a time. Comparing line
+    numbers would be stronger and is not available: a finding spanning four
+    lines becomes one replacement string, so every number after it shifts. A
+    subsequence still catches a line that was altered, dropped, duplicated or
+    moved, which is everything a span can do to a line it should not have
+    touched.
+    """
     content, findings, result = answer(path, runtime)
     if not findings:
         pytest.skip("nothing reported")
@@ -238,10 +253,10 @@ def test_lines_without_findings_come_back_unchanged(path: pathlib.Path, runtime:
     touched = {
         line for finding in findings for line in range(finding["StartLine"], finding["EndLine"] + 1)
     }
+    kept = iter(result.content.splitlines())
     for number, line in enumerate(content.splitlines(), start=1):
-        # Short lines match by accident; the replacement string is what a
-        # redacted line contains instead.
-        if number not in touched and len(line.strip()) > 12:
-            assert line in result.content, (
-                f"line {number} was redacted but had no finding: {line!r}"
-            )
+        if number in touched:
+            continue
+        assert line in kept, (
+            f"line {number} had no finding and did not come back, in order and unaltered: {line!r}"
+        )
