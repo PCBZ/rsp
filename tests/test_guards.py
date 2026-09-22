@@ -36,8 +36,10 @@ if TYPE_CHECKING:
     from llama_index.core.schema import BaseNode
 
 ROOT = pathlib.Path(__file__).parent.parent
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
-GITLEAKS_TS = ["node", "examples/gitleaks-ts/src/main.ts"]
+# Absolute: a plugin command is resolved by the operating system, not by
+# pytest's idea of where it was started from.
+ECHO = [sys.executable, str(ROOT / "plugins/rsp-echo/main.py")]
+GITLEAKS_TS = ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")]
 
 # The echo plugin's markers (plugins/rsp-echo/main.py).
 BLOCKED = "This paragraph contains RSP-BLOCK and must never be stored."

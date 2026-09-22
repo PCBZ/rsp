@@ -23,11 +23,11 @@ CASES = sorted(CASE_ROOT.rglob("*.json"))
 # A plugin is a command. What it is written in is its author's business, which
 # is the claim these entries exist to make rather than assert.
 PLUGINS = {
-    "rsp-echo": ([sys.executable, "plugins/rsp-echo/main.py"], (sys.executable,)),
+    "rsp-echo": ([sys.executable, str(ROOT / "plugins/rsp-echo/main.py")], (sys.executable,)),
     # A wrapper needs its tool as well as its runtime. Both must be present
     # or the cases cannot run, and in CI that is a failure rather than a skip.
     "rsp-gitleaks-ts": (
-        ["node", "examples/gitleaks-ts/src/main.ts"],
+        ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")],
         ("node", "gitleaks"),
     ),
 }

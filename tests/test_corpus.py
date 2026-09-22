@@ -38,7 +38,7 @@ import pytest
 from rsp.runtime import Plugin, Result, Runtime, Verdict
 
 ROOT = pathlib.Path(__file__).parent.parent
-PLUGIN = ["node", "examples/gitleaks-ts/src/main.ts"]
+PLUGIN = ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")]
 
 # Fetched by the plugins workflow, from the same release as the binary: a
 # corpus from a different one disagrees for reasons that are nobody's bug.
