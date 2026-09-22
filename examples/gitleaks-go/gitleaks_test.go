@@ -139,3 +139,24 @@ func TestToSpansDropsAnEmptyMatch(t *testing.T) {
 		t.Errorf("got %+v, want none", spans)
 	}
 }
+
+func TestToSpansDropsSpansTheHostWouldReject(t *testing.T) {
+	content := "密钥 " + key
+	cases := map[string]Finding{
+		// EndColumn past the content, with Match happening to be its tail.
+		"past the end": {RuleID: "aws-access-token", StartLine: 1, EndLine: 1,
+			StartColumn: 8, EndColumn: 400, Match: key},
+		// Offsets inside 密, with Match the bytes they actually cover: the
+		// slice comparison is satisfied and the span is still not a character.
+		"inside a rune": {RuleID: "private-key", StartLine: 1, EndLine: 1,
+			StartColumn: 2, EndColumn: 3, Match: "\xaf\x86"},
+	}
+
+	for name, finding := range cases {
+		t.Run(name, func(t *testing.T) {
+			if spans := toSpans([]Finding{finding}, content); len(spans) != 0 {
+				t.Errorf("got %+v, want none", spans)
+			}
+		})
+	}
+}

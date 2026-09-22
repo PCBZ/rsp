@@ -55,17 +55,22 @@ func toSpans(findings []Finding, content string) []Span {
 			continue
 		}
 		span := Span{Start: from + f.StartColumn - 1, End: to + f.EndColumn, Type: f.RuleID}
-		// End > Start: an empty Match satisfies the slice check below from any
-		// equal pair, including one inside a rune.
-		if span.Start < 0 || span.End > len(content) || span.End <= span.Start {
-			continue
-		}
-		if content[span.Start:span.End] != f.Match {
+		// What S3 will check, checked here: an adapter should not hand the host
+		// a span it is going to reject.
+		if !usable(span, content) || content[span.Start:span.End] != f.Match {
 			continue
 		}
 		spans = append(spans, span)
 	}
 	return spans
+}
+
+// usable reports whether a span is in range, non-empty, and on character
+// boundaries at both ends.
+func usable(span Span, content string) bool {
+	boundary := func(at int) bool { return at == len(content) || content[at]&0xC0 != 0x80 }
+	return span.Start >= 0 && span.End <= len(content) && span.End > span.Start &&
+		boundary(span.Start) && boundary(span.End)
 }
 
 // origin is the byte gitleaks counts this line's columns from.

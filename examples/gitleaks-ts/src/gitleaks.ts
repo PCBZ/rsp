@@ -56,12 +56,27 @@ export function toSpans(findings: Finding[], content: string): Span[] {
       end: to + finding.EndColumn,
       type: finding.RuleID,
     };
-    // An empty Match satisfies the slice check from any equal pair.
-    if (span.end <= span.start) continue;
+    // What S3 will check, checked here: subarray truncates out-of-range
+    // indices instead of failing, and an empty Match satisfies the slice
+    // comparison from any equal pair. An adapter should not hand the host a
+    // span it is going to reject.
+    if (!usable(span, bytes)) continue;
     if (bytes.subarray(span.start, span.end).toString("utf8") !== finding.Match) continue;
     spans.push(span);
   }
   return spans;
+}
+
+/** In range, non-empty, and on character boundaries at both ends. */
+function usable(span: Span, bytes: Buffer): boolean {
+  const boundary = (at: number) => at === bytes.length || (bytes[at]! & 0xc0) !== 0x80;
+  return (
+    span.start >= 0 &&
+    span.end <= bytes.length &&
+    span.end > span.start &&
+    boundary(span.start) &&
+    boundary(span.end)
+  );
 }
 
 /** The byte gitleaks counts this line's columns from, or undefined if absent. */
