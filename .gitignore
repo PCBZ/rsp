@@ -5,3 +5,4 @@ __pycache__/
 coverage.xml
 .ruff_cache/
 .pytest_cache/
+report.html

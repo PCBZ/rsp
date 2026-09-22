@@ -12,6 +12,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 
 import pytest
 
@@ -52,11 +53,17 @@ REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
 @pytest.mark.parametrize(
     "path", CASES, ids=lambda p: p.relative_to(CASE_ROOT).as_posix().removesuffix(".json")
 )
-def test_case(path: pathlib.Path, escaped: bool) -> None:
+def test_case(
+    path: pathlib.Path, escaped: bool, record_property: Callable[[str, object], None]
+) -> None:
     """Both encodings, because JSON permits either. This host sends raw UTF-8,
     but another may escape, and a plugin decoding surrogate pairs wrong reports
     offsets that are wrong by two — invisibly, until content leaves the BMP."""
     case = json.loads(path.read_text())
+    # The clause and the implementation are what make the report a matrix
+    # rather than a list of names (see conftest.py).
+    record_property("clause", case["clause"])
+    record_property("plugin", case["plugin"])
     command, tools = PLUGINS[case["plugin"]]
     if missing := [tool for tool in tools if not _installed(tool)]:
         message = f"not installed: {', '.join(missing)}"

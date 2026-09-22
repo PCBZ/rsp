@@ -1,12 +1,8 @@
 name: Plugins
 
-# Separate from CI on purpose. These jobs install other people's tools, and a
-# failure here can mean upstream changed rather than we did — a distinction
-# worth keeping out of the workflow that answers "is this commit sound?".
-#
-# The schedule is the point of that separation: gitleaks adding or retiring a
-# rule changes a verdict for content that has not changed, and nothing in a
-# pull request would reveal it.
+# Separate from CI because a failure here can mean upstream changed rather than
+# we did. Hence the schedule: gitleaks retiring a rule changes a verdict for
+# content that has not changed, and no pull request would reveal it.
 
 on:
   push:
@@ -14,7 +10,12 @@ on:
     paths: &paths
       - "examples/**"
       - "conformance/**"
-      - "tests/test_conformance.py"
+      - "tests/**"
+      # The suite here runs the host too, so a runtime or dependency change
+      # reaches it — and this is the only job with the tools to notice.
+      - "rsp/**"
+      - "pyproject.toml"
+      - "SPEC.md"
       - ".github/workflows/plugins.yml"
   pull_request:
     paths: *paths
@@ -30,15 +31,14 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pinned, because its rules decide verdicts: a bump is a change to our
-  # expected values and should be a deliberate commit, not a surprise.
+  # One pin for both downloads: the binary, and the test files it is developed
+  # against, which ship in the source archive and not in the release.
   GITLEAKS_VERSION: 8.30.1
 
 jobs:
   gitleaks-ts:
-    # Both platforms a contributor plausibly has. The offsets are arithmetic and
-    # cannot differ, but the binary is a different build on each, and the plugin
-    # talks to it through a pipe — whose behaviour is the operating system's.
+    # The binary is a different build on each, and the pipe between the plugin
+    # and it belongs to the operating system.
     strategy:
       fail-fast: false
       matrix:
@@ -55,18 +55,13 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
         with:
           enable-cache: true
-      # Pinned for the same reason as the gitleaks version: which Node runs the
-      # tests is our decision, not the runner image's. Without this the image
-      # supplied Node 22, where the test runner rejected a directory argument.
+      # The image supplied Node 22, where the test runner rejected a directory.
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: examples/gitleaks-ts/package-lock.json
 
-      # The release binary, as published. There is no apt package, and building
-      # from source would mean trusting a Go toolchain to reproduce the thing
-      # whose rules decide our expected values.
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -75,15 +70,11 @@ jobs:
           sums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           curl -sSfLO "${base}/${asset}"
           curl -sSfLO "${base}/${sums}"
-          # A pinned version names what we meant to run; the checksum is what
-          # says we got it. Without this the pin trusts the download.
           grep " ${asset}\$" "${sums}" | shasum -a 256 --check --strict -
           tar -xzf "${asset}" gitleaks
           sudo install -m 755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
 
-      # The plugin's own suite: the coordinate conversion, which needs no
-      # binary, and the types.
       - name: Unit tests and types
         working-directory: examples/gitleaks-ts
         run: |
@@ -91,10 +82,30 @@ jobs:
           npm run typecheck
           npm test
 
-      # The protocol cases, fed to the plugin across a real process boundary.
-      # REQUIRE turns a missing toolchain into a failure: a silently skipped
-      # plugin proves nothing, and this is the workflow that has the tools.
-      - name: Conformance cases
-        run: uv run --frozen pytest tests/test_conformance.py -q
+      # Other people's test secrets, kept out of the checkout.
+      - name: Fetch the corpus
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/corpus"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/archive/refs/tags/v${GITLEAKS_VERSION}.tar.gz" \
+            | tar -xz -C "${RUNNER_TEMP}/corpus" --strip-components=2 \
+              "gitleaks-${GITLEAKS_VERSION}/testdata"
+          find "${RUNNER_TEMP}/corpus" -type f | wc -l
+
+      # Nothing skips for a missing tool here, so this is the only run that
+      # covers every clause against every implementation — the report's point.
+      - name: Every case, every tool present
+        run: uv run --frozen pytest tests/ -q --html=report.html --self-contained-html
         env:
           RSP_REQUIRE_ALL_PLUGINS: "1"
+          RSP_GITLEAKS_CORPUS: ${{ runner.temp }}/corpus
+
+      # always(): the report of a run that failed is the one worth reading.
+      # One platform, like the coverage upload — a clause matrix is not
+      # platform-specific.
+      - if: always() && matrix.runner == 'ubuntu-latest'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conformance-report
+          path: report.html
