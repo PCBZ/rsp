@@ -18,12 +18,34 @@ ROOT = pathlib.Path(__file__).parent.parent
 
 @dataclass(frozen=True)
 class Implementation:
-    """A plugin: a command, and what has to be installed to run it."""
+    """A plugin: how to run it from source, and what that needs installed.
+
+    Every entry can also be pointed at something already built, with
+    `RSP_PLUGIN_GITLEAKS_GO` and friends. Only Go needs it today — `go run` recompiles on every
+    invocation and the corpus suite makes four hundred — but the escape hatch
+    belongs to all of them rather than to the language that asked first.
+    """
 
     name: str
     role: str
-    command: tuple[str, ...]
-    tools: tuple[str, ...]
+    source: tuple[str, ...]
+    toolchain: tuple[str, ...]
+    wraps: tuple[str, ...] = ()
+
+    @property
+    def built(self) -> str | None:
+        short = self.name.removeprefix("rsp-").upper().replace("-", "_")
+        return os.environ.get(f"RSP_PLUGIN_{short}")
+
+    @property
+    def command(self) -> tuple[str, ...]:
+        return (self.built,) if self.built else self.source
+
+    @property
+    def tools(self) -> tuple[str, ...]:
+        """A built binary needs the wrapped tool; running from source also
+        needs the toolchain that runs it."""
+        return self.wraps if self.built else self.toolchain + self.wraps
 
     @property
     def installed(self) -> bool:
@@ -42,32 +64,28 @@ def _resolve(tool: str) -> str | None:
     return shutil.which(override or tool)
 
 
-def _go_command() -> tuple[str, ...]:
-    """A built binary when offered: `go run` recompiles per invocation, which
-    the corpus suite would pay for four hundred times."""
-    if built := os.environ.get("RSP_GITLEAKS_GO"):
-        return (built,)
-    return ("go", "run", str(ROOT / "examples/gitleaks-go"))
-
-
 REGISTRY = (
     Implementation(
         name="rsp-echo",
         role="echo",
-        command=(sys.executable, str(ROOT / "plugins/rsp-echo/main.py")),
-        tools=(sys.executable,),
+        source=(sys.executable, str(ROOT / "plugins/rsp-echo/main.py")),
+        toolchain=(sys.executable,),
     ),
     Implementation(
         name="rsp-gitleaks-ts",
         role="gitleaks",
-        command=("node", str(ROOT / "examples/gitleaks-ts/src/main.ts")),
-        tools=("node", "gitleaks"),
+        source=("node", str(ROOT / "examples/gitleaks-ts/src/main.ts")),
+        toolchain=("node",),
+        wraps=("gitleaks",),
     ),
     Implementation(
         name="rsp-gitleaks-go",
         role="gitleaks",
-        command=_go_command(),
-        tools=("go", "gitleaks") if "RSP_GITLEAKS_GO" not in os.environ else ("gitleaks",),
+        # -C, because `go run <dir>` resolves the package against the working
+        # directory's module and the repository root is not one.
+        source=("go", "run", "-C", str(ROOT / "examples/gitleaks-go"), "."),
+        toolchain=("go",),
+        wraps=("gitleaks",),
     ),
 )
 

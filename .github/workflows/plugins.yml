@@ -116,7 +116,7 @@ jobs:
         env:
           RSP_REQUIRE_ALL_PLUGINS: "1"
           RSP_GITLEAKS_CORPUS: ${{ runner.temp }}/corpus
-          RSP_GITLEAKS_GO: ${{ runner.temp }}/rsp-gitleaks-go
+          RSP_PLUGIN_GITLEAKS_GO: ${{ runner.temp }}/rsp-gitleaks-go
 
       # always(): the report of a run that failed is the one worth reading.
       # One platform, like the coverage upload — a clause matrix is not
