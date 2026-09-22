@@ -1,7 +1,7 @@
 {
   "name": "verdict-redact",
   "clause": "V3",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "note": "REDACT carries spans and replacement.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "a secret here" },
   "expect": {

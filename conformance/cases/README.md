@@ -11,15 +11,21 @@ still lacking evidence when this version is tagged is deleted rather than
 shipped.
 
 ```json
-{ "name": "...", "clause": "S1", "plugin": "rsp-echo",
+{ "name": "...", "clause": "S1", "plugin": "echo",
   "request":  { ... },
   "expect":   { "response": { ... } } }
 ```
 
-`plugin` names the plugin a case is written against. These cases target the
-reference plugin, whose verdicts are selected by content markers. Cases that any
-plugin must pass — framing, stdout discipline, span validity — become
-plugin-agnostic once the kit is packaged to run standalone.
+`plugin` names a **role**, not an implementation: which kind of plugin can
+answer the case. `echo` is the reference plugin, whose verdicts are selected by
+content markers. `gitleaks` is any adapter over that binary, and the runner
+resolves it to every one installed — so a case runs against all of them and
+they have to agree.
+
+That is the difference between testing a protocol and testing a program. These
+cases named `rsp-gitleaks-ts` until a second adapter over the same tool existed,
+at which point seven case files asserting nothing about TypeScript could only be
+run against TypeScript.
 
 ## Two kinds of case, one of which does not exist yet
 

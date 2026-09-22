@@ -28,23 +28,21 @@ from __future__ import annotations
 import json
 import os
 import pathlib
-import shutil
 import subprocess
-from collections.abc import Callable
 from typing import NamedTuple
 
 import pytest
 
+from plugins import REQUIRED, Implementation, for_role
 from rsp.runtime import Plugin, Result, Runtime, Verdict
 
 ROOT = pathlib.Path(__file__).parent.parent
-PLUGIN = ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")]
+IMPLEMENTATIONS = for_role("gitleaks")
 
 # Fetched by the plugins workflow, from the same release as the binary: a
 # corpus from a different one disagrees for reasons that are nobody's bug.
 CORPUS = os.environ.get("RSP_GITLEAKS_CORPUS")
 GITLEAKS = os.environ.get("RSP_GITLEAKS") or "gitleaks"
-REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
 
 # Archives are gitleaks' own feature, not the plugin's: the protocol carries
 # text (M1), and a host that unpacks archives does it before any chunk exists.
@@ -125,41 +123,59 @@ class Answer(NamedTuple):
     result: Result
 
 
-_ANSWERS: dict[pathlib.Path, Answer] = {}
+_ANSWERS: dict[tuple[pathlib.Path, str], Answer] = {}
+_RUNTIMES: dict[str, Runtime] = {}
 
 
-def answer(path: pathlib.Path, runtime: Runtime) -> Answer:
-    """Both answers for one file, asked once. Three properties read the same
-    pair, and each process this avoids is a gitleaks run."""
-    if path not in _ANSWERS:
+def answer(path: pathlib.Path, implementation: Implementation) -> Answer:
+    """Both answers for one file and one plugin, asked once.
+
+    Four properties read the same pair, and each process this avoids is a
+    gitleaks run — of which there are two per file per implementation.
+    """
+    key = (path, implementation.name)
+    if key not in _ANSWERS:
         content = _text(path)
         if content is None:
             pytest.skip("not UTF-8")
-        _ANSWERS[path] = Answer(content, _oracle(content), runtime.evaluate("on_chunk", content))
-    return _ANSWERS[path]
+        result = runtime_for(implementation).evaluate("on_chunk", content)
+        _ANSWERS[key] = Answer(content, _oracle(content), result)
+    return _ANSWERS[key]
+
+
+def runtime_for(implementation: Implementation) -> Runtime:
+    """One handshake per implementation, not per file."""
+    if implementation.name not in _RUNTIMES:
+        _RUNTIMES[implementation.name] = Runtime(
+            [Plugin(name=implementation.name, command=list(implementation.command))]
+        )
+    return _RUNTIMES[implementation.name]
 
 
 @pytest.fixture(autouse=True)
-def _label(record_property: Callable[[str, object], None]) -> None:
-    """Which implementation these rows are about. No clause: fidelity to the
-    wrapped tool is not something SPEC.md requires of anyone — it is what this
-    adapter owes the tool it wraps."""
-    record_property("plugin", "rsp-gitleaks-ts")
+def _guard_the_environment(request: pytest.FixtureRequest) -> None:
+    """Skip or fail before a test asks anything, and label the report row.
+
+    No clause is recorded: fidelity to the wrapped tool is not something
+    SPEC.md requires of anyone — it is what an adapter owes the tool it wraps.
+    """
+    callspec = getattr(request.node, "callspec", None)
+    implementation = callspec.params.get("implementation") if callspec else None
+    if implementation is not None:
+        request.getfixturevalue("record_property")("plugin", implementation.name)
+        if not implementation.installed:
+            message = f"not installed: {implementation.missing}"
+            pytest.fail(message) if REQUIRED else pytest.skip(message)
+    if CORPUS is None:
+        pytest.fail("no corpus") if REQUIRED else pytest.skip("no corpus")
 
 
-@pytest.fixture(scope="module")
-def runtime() -> Runtime:
-    """One handshake for the whole corpus. Also the first test anywhere that
-    drives this plugin through the host rather than as a bare subprocess."""
-    missing = [tool for tool in ("node", GITLEAKS) if shutil.which(tool) is None]
-    if missing or CORPUS is None:
-        why = f"not installed: {', '.join(missing)}" if missing else "no corpus"
-        pytest.fail(why) if REQUIRED else pytest.skip(why)
-    return Runtime([Plugin(name="gitleaks", command=PLUGIN)])
-
-
-def _ids(path: pathlib.Path) -> str:
-    return path.relative_to(pathlib.Path(CORPUS)).as_posix() if CORPUS else str(path)
+def _ids(value: object) -> str:
+    if isinstance(value, Implementation):
+        return value.name
+    if isinstance(value, pathlib.Path) and CORPUS:
+        return value.relative_to(pathlib.Path(CORPUS)).as_posix()
+    return str(value)
 
 
 pytestmark = pytest.mark.skipif(
@@ -189,14 +205,17 @@ def test_the_corpus_reaches_the_adapter_at_all() -> None:
     )
 
 
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS, ids=_ids)
 @pytest.mark.parametrize("path", CASES, ids=_ids)
-def test_content_with_a_finding_is_not_allowed(path: pathlib.Path, runtime: Runtime) -> None:
+def test_content_with_a_finding_is_not_allowed(
+    path: pathlib.Path, implementation: Implementation
+) -> None:
     """The failure this catches is the quiet one: an adapter that reports no
     span for a finding, or a gitleaks that never ran, both look like clean
     content. REDACT rather than merely "not ALLOW", because BLOCK here means
     the adapter could not place a finding it was given — the placement rate
     this corpus measures, which has to be one."""
-    _, findings, result = answer(path, runtime)
+    _, findings, result = answer(path, implementation)
 
     if not findings:
         assert result.verdict is Verdict.ALLOW, f"allowed nothing, got {result.reasons}"
@@ -207,14 +226,17 @@ def test_content_with_a_finding_is_not_allowed(path: pathlib.Path, runtime: Runt
     )
 
 
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS, ids=_ids)
 @pytest.mark.parametrize("path", CASES, ids=_ids)
-def test_no_reported_secret_survives_redaction(path: pathlib.Path, runtime: Runtime) -> None:
+def test_no_reported_secret_survives_redaction(
+    path: pathlib.Path, implementation: Implementation
+) -> None:
     """The security property, and the reason it is checked in windows rather
     than whole: a span that covers the first thirty bytes of a private key
     destroys the exact string while leaving the key readable, so asking whether
     `Secret` is still a substring passes for a redaction that leaked almost all
     of it. Every window has to be gone."""
-    _, findings, result = answer(path, runtime)
+    _, findings, result = answer(path, implementation)
     if not findings:
         pytest.skip("nothing reported")
     if result.verdict is Verdict.BLOCK:
@@ -232,8 +254,11 @@ def test_no_reported_secret_survives_redaction(path: pathlib.Path, runtime: Runt
                 )
 
 
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS, ids=_ids)
 @pytest.mark.parametrize("path", CASES, ids=_ids)
-def test_lines_without_findings_come_back_unchanged(path: pathlib.Path, runtime: Runtime) -> None:
+def test_lines_without_findings_come_back_unchanged(
+    path: pathlib.Path, implementation: Implementation
+) -> None:
     """The other half of a misplaced span: it destroys content nobody objected
     to. Redacting a whole chunk would pass the survival test above.
 
@@ -244,7 +269,7 @@ def test_lines_without_findings_come_back_unchanged(path: pathlib.Path, runtime:
     moved, which is everything a span can do to a line it should not have
     touched.
     """
-    content, findings, result = answer(path, runtime)
+    content, findings, result = answer(path, implementation)
     if not findings:
         pytest.skip("nothing reported")
     if result.verdict is Verdict.BLOCK:
@@ -260,3 +285,28 @@ def test_lines_without_findings_come_back_unchanged(path: pathlib.Path, runtime:
         assert line in kept, (
             f"line {number} had no finding and did not come back, in order and unaltered: {line!r}"
         )
+
+
+@pytest.mark.parametrize("path", CASES, ids=_ids)
+def test_every_implementation_of_the_role_answers_identically(path: pathlib.Path) -> None:
+    """The claim a second implementation exists to test.
+
+    Two adapters over the same binary must return the same verdict and leave
+    the host holding the same bytes. Anything else means one of them is reading
+    gitleaks' report differently, and a protocol whose implementations disagree
+    is a suggestion.
+
+    Reads the cache the properties above filled, so this costs no processes.
+    """
+    installed = [one for one in IMPLEMENTATIONS if one.installed]
+    if len(installed) < 2:
+        pytest.skip("needs two implementations of the role")
+
+    answers = {one.name: answer(path, one) for one in installed}
+    verdicts = {name: found.result.verdict for name, found in answers.items()}
+    contents = {name: found.result.content for name, found in answers.items()}
+
+    assert len(set(verdicts.values())) == 1, f"verdicts disagree: {verdicts}"
+    assert len(set(contents.values())) == 1, (
+        f"the same content came back differently: {sorted(contents)}"
+    )

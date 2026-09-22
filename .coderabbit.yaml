@@ -41,9 +41,11 @@ reviews:
 
     - path: '{plugins,examples}/**'
       instructions: >-
-        Adapters wrap unmodified upstream binaries and stay under 80 lines. Flag
-        detection logic the wrapped tool already performs. One JSON object on
-        stdout per call; diagnostics on stderr.
+        Adapters wrap unmodified upstream binaries and contain no detection
+        logic — flag any the wrapped tool already performs. Under 80 lines of
+        code, except where a brace-per-line language pays for syntax rather
+        than behaviour. One JSON object on stdout per call; diagnostics on
+        stderr.
 
     - path: 'examples/**/*.ts'
       instructions: >-

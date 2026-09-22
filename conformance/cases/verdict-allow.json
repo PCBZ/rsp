@@ -1,7 +1,7 @@
 {
   "name": "verdict-allow",
   "clause": "V2",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "note": "ALLOW is valid with no other field present.",
   "request": {
     "rsp_version": "0.1",

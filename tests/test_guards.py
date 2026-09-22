@@ -13,10 +13,6 @@ transformation chain never touches.
 
 from __future__ import annotations
 
-import os
-import pathlib
-import shutil
-import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -27,6 +23,7 @@ from llama_index.core.schema import Document, MetadataMode, NodeWithScore, TextN
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.vector_stores import SimpleVectorStore
 
+from plugins import Implementation, for_role
 from rsp.guards import RSPIngestGuard, RSPRetrieveGuard
 from rsp.runtime import Plugin, Runtime
 
@@ -35,11 +32,8 @@ if TYPE_CHECKING:
 
     from llama_index.core.schema import BaseNode
 
-ROOT = pathlib.Path(__file__).parent.parent
-# Absolute: a plugin command is resolved by the operating system, not by
-# pytest's idea of where it was started from.
-ECHO = [sys.executable, str(ROOT / "plugins/rsp-echo/main.py")]
-GITLEAKS_TS = ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")]
+ECHO = next(one for one in for_role("echo"))
+GITLEAKS = for_role("gitleaks")
 
 # The echo plugin's markers (plugins/rsp-echo/main.py).
 BLOCKED = "This paragraph contains RSP-BLOCK and must never be stored."
@@ -69,7 +63,7 @@ def _forget() -> None:
 
 @pytest.fixture(scope="module")
 def echo() -> Runtime:
-    return Runtime([Plugin(name="echo", command=ECHO)])
+    return Runtime([Plugin(name=ECHO.name, command=list(ECHO.command))])
 
 
 def pipeline(runtime: Runtime, **kwargs: Any) -> IngestionPipeline:
@@ -172,20 +166,21 @@ def test_a_blocked_node_shrinks_the_result_set(echo: Runtime) -> None:
     assert [item.node.get_content() for item in kept] == [CLEAN]
 
 
-# The wrapper reads RSP_GITLEAKS, so this has to look where the wrapper looks
-# or it reports the tool missing while the plugin goes on to find it.
-GITLEAKS = os.environ.get("RSP_GITLEAKS") or "gitleaks"
-
-
-@pytest.mark.skipif(
-    shutil.which("node") is None or shutil.which(GITLEAKS) is None,
-    reason="the wrapper needs node and gitleaks",
-)
-def test_a_third_party_detector_through_the_whole_chain() -> None:
+@pytest.mark.parametrize("implementation", GITLEAKS, ids=lambda one: one.name)
+def test_a_third_party_detector_through_the_whole_chain(
+    implementation: Implementation,
+) -> None:
     """The claim the proposal makes, with nothing of ours doing the detecting:
     a credential gitleaks recognises, through the real pipeline, into a store
-    that reports what it kept."""
-    runtime = Runtime([Plugin(name="gitleaks", command=GITLEAKS_TS)])
+    that reports what it kept.
+
+    Once per implementation of the role, because "the host does not care what
+    the plugin is written in" is a claim about the host, and a claim tested
+    against one language is a claim about that language.
+    """
+    if not implementation.installed:
+        pytest.skip(f"not installed: {implementation.missing}")
+    runtime = Runtime([Plugin(name=implementation.name, command=list(implementation.command))])
     key = "AKIALALEMEL33243OLIB"
 
     pipeline(runtime).run(documents=[Document(text=f"deploy with {key} today")])

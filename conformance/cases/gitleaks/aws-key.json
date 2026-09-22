@@ -1,4 +1,4 @@
-{ "name": "aws-key", "clause": "V3", "plugin": "rsp-gitleaks-ts",
+{ "name": "aws-key", "clause": "V3", "plugin": "gitleaks",
   "note": "The key is gitleaks' own true-positive sample for its aws-access-token rule. The finding type is the rule id, because the adapter reports what the tool found rather than a name of its own.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "deploy with AKIALALEMEL33243OLIB today" },
   "expect": { "response": { "verdict": "REDACT", "spans": [{ "start": 12, "end": 32, "type": "aws-access-token" }], "replacement": "[REDACTED:secret]", "severity": "critical" } } }

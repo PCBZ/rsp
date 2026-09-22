@@ -1,4 +1,8 @@
-"""Every case in conformance/cases, run against the plugin it names.
+"""Every case in conformance/cases, run against every plugin that can answer it.
+
+A case names a role — `gitleaks` rather than `rsp-gitleaks-ts` — so the same
+case runs against each implementation of that role and the answers have to
+match. A case that named a language could only ever test one.
 
 A stand-in for the standalone kit, which has to run without the runtime
 source present — so nothing here imports rsp.
@@ -7,66 +11,51 @@ source present — so nothing here imports rsp.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
-import shutil
 import subprocess
-import sys
 from collections.abc import Callable
 
 import pytest
+
+from plugins import REQUIRED, Implementation, for_role
 
 ROOT = pathlib.Path(__file__).parent.parent
 CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
 
-# A plugin is a command. What it is written in is its author's business, which
-# is the claim these entries exist to make rather than assert.
-PLUGINS = {
-    "rsp-echo": ([sys.executable, str(ROOT / "plugins/rsp-echo/main.py")], (sys.executable,)),
-    # A wrapper needs its tool as well as its runtime. Both must be present
-    # or the cases cannot run, and in CI that is a failure rather than a skip.
-    "rsp-gitleaks-ts": (
-        ["node", str(ROOT / "examples/gitleaks-ts/src/main.ts")],
-        ("node", "gitleaks"),
-    ),
-}
-
-# A wrapper may be pointed at its tool by an environment variable instead of
-# PATH. This check has to look where the plugin will look, or it reports a tool
-# as missing while the plugin goes on to find it.
-TOOL_OVERRIDES = {"gitleaks": "RSP_GITLEAKS"}
+# One parameter per case and implementation, resolved at collection so a
+# missing plugin is a visible skip per case rather than a silently shorter run.
+RUNS = [
+    (path, implementation)
+    for path in CASES
+    for implementation in for_role(json.loads(path.read_text())["plugin"])
+]
 
 
-def _installed(tool: str) -> bool:
-    override = os.environ.get(TOOL_OVERRIDES.get(tool, ""))
-    return shutil.which(override or tool) is not None
-
-
-# Toolchains belong to CI, not to a contributor's machine. Locally a missing
-# one skips its cases; here it fails, because a silently skipped plugin proves
-# nothing.
-REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
+def _id(run: tuple[pathlib.Path, Implementation]) -> str:
+    path, implementation = run
+    return f"{path.relative_to(CASE_ROOT).as_posix().removesuffix('.json')}-{implementation.name}"
 
 
 @pytest.mark.parametrize("escaped", [False, True], ids=["utf8", "escaped"])
-@pytest.mark.parametrize(
-    "path", CASES, ids=lambda p: p.relative_to(CASE_ROOT).as_posix().removesuffix(".json")
-)
+@pytest.mark.parametrize("run", RUNS, ids=_id)
 def test_case(
-    path: pathlib.Path, escaped: bool, record_property: Callable[[str, object], None]
+    run: tuple[pathlib.Path, Implementation],
+    escaped: bool,
+    record_property: Callable[[str, object], None],
 ) -> None:
     """Both encodings, because JSON permits either. This host sends raw UTF-8,
     but another may escape, and a plugin decoding surrogate pairs wrong reports
     offsets that are wrong by two — invisibly, until content leaves the BMP."""
+    path, implementation = run
     case = json.loads(path.read_text())
     # The clause and the implementation are what make the report a matrix
     # rather than a list of names (see conftest.py).
     record_property("clause", case["clause"])
-    record_property("plugin", case["plugin"])
-    command, tools = PLUGINS[case["plugin"]]
-    if missing := [tool for tool in tools if not _installed(tool)]:
-        message = f"not installed: {', '.join(missing)}"
+    record_property("plugin", implementation.name)
+    command = list(implementation.command)
+    if not implementation.installed:
+        message = f"not installed: {implementation.missing}"
         pytest.fail(message) if REQUIRED else pytest.skip(message)
 
     try:

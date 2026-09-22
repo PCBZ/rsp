@@ -1,4 +1,4 @@
-{ "name": "span-on-a-later-line", "clause": "S1", "plugin": "rsp-gitleaks-ts",
+{ "name": "span-on-a-later-line", "clause": "S1", "plugin": "gitleaks",
   "note": "The key sits at byte 16, on the second line. gitleaks reports column 11 for it, because its columns run from the newline byte ending the previous line rather than from the line's first byte — only the first line, which has no such byte, matches the 1-based column anyone would assume.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "header\nexport K=AKIALALEMEL33243OLIB\n" },
   "expect": { "response": { "verdict": "REDACT", "spans": [{ "start": 16, "end": 36, "type": "aws-access-token" }], "replacement": "[REDACTED:secret]", "severity": "critical" } } }

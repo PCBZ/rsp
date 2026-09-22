@@ -1,4 +1,4 @@
-{ "name": "span-across-lines", "clause": "S1", "plugin": "rsp-gitleaks-ts",
+{ "name": "span-across-lines", "clause": "S1", "plugin": "gitleaks",
   "note": "A PEM block is a finding that ends on a line after the one it starts on. The end offset therefore belongs to the end line: read against the start line it lands 141 bytes early, which redacts the key's first line and leaves the rest in the chunk. The key material is fabricated.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "cfg:\n-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\nKUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==\n-----END RSA PRIVATE KEY-----\ntrailing\n" },
   "expect": { "response": { "verdict": "REDACT", "spans": [{ "start": 5, "end": 176, "type": "private-key" }], "replacement": "[REDACTED:secret]", "severity": "critical" } } }

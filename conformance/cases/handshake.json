@@ -1,7 +1,7 @@
 {
   "name": "handshake",
   "clause": "H1",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "request": { "rsp_version": "0.1", "hook": "handshake" },
   "expect": {
     "response": {

@@ -1,7 +1,7 @@
 {
   "name": "verdict-flag",
   "clause": "V1",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "RSP-FLAG here" },
   "expect": { "response": { "verdict": "FLAG", "reason": "marker RSP-FLAG", "severity": "low" } }
 }

@@ -1,7 +1,7 @@
 {
   "name": "metadata-is-advisory",
   "clause": "M2",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "note": "No metadata at all. A plugin that needs the host's vocabulary — file_path, node_id — works with one host and no other, so it must still return a verdict without it.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "a secret here" },
   "expect": {

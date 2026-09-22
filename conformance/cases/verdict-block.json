@@ -1,7 +1,7 @@
 {
   "name": "verdict-block",
   "clause": "V1",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "RSP-BLOCK here" },
   "expect": { "response": { "verdict": "BLOCK", "reason": "marker RSP-BLOCK", "severity": "critical" } }
 }
