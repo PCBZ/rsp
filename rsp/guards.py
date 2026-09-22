@@ -4,12 +4,9 @@ Written against the real llama-index-core 0.14.24 API, and originally against
 an ``rsp.runtime`` that did not exist yet: the runtime's API is what this file
 needed it to be, and SPEC.md was reverse-engineered from that.
 
-A host can persist content down paths these components never see.
-``IngestionPipeline.run`` defaults to ``store_doc_text=True``, which writes the
-input documents to a docstore without consulting any transformation — so a
-document this guard rejects is stored anyway. Pass ``store_doc_text=False``, or
-guard documents before they enter the pipeline. tests/test_guards.py pins both
-halves of that.
+Pass ``store_doc_text=False`` to ``IngestionPipeline.run`` when a docstore is
+configured: it writes documents down a path no transformation sees, and K1
+counts that as storing them.
 
 Verified signatures:
     TransformComponent.__call__(nodes: Sequence[BaseNode], **kwargs) -> Sequence[BaseNode]
