@@ -1,4 +1,4 @@
-{ "name": "handshake", "clause": "H2", "plugin": "rsp-gitleaks-ts",
+{ "name": "wrapper-version-in-handshake", "clause": "H2", "plugin": "rsp-gitleaks-ts",
   "note": "The version is asserted as a prefix: it carries the wrapped binary's version too, because a cache key contains the plugin version (D4) and for a wrapper it is the tool that decides verdicts.",
   "request": { "rsp_version": "0.1", "hook": "handshake" },
   "expect": { "declaration": { "rsp_version": "0.1", "name": "rsp-gitleaks-ts", "hooks": ["on_chunk", "on_retrieve"], "deterministic": true },

@@ -25,8 +25,8 @@ ALL_CASES = [
     for p in sorted(CASE_ROOT.rglob("*.json"))
 ]
 # Keyed by stem for the fixture references in SPEC.md, which name a case rather
-# than a path. Coverage is counted from ALL_CASES instead, because two
-# directories may hold a case of the same name and a dict would drop one.
+# than a path. Coverage is counted from ALL_CASES instead, because a dict drops
+# a repeated name — which is what the uniqueness test below exists to prevent.
 CASES = {pathlib.Path(name).stem: case for name, case in ALL_CASES}
 OPEN_QUESTIONS = set(re.findall(r"\| (Q\d) \|", SPEC[SPEC.find("## 9. Open questions") :]))
 
@@ -48,6 +48,19 @@ def test_fixture_references_point_at_real_cases(clause: str) -> None:
     for line in re.findall(r"Fixtures?: (.+)", CLAUSES[clause]):
         for name in (n.strip().strip("`") for n in line.split(",")):
             assert name in CASES, f"{clause} references a case that does not exist"
+
+
+def test_case_names_are_unique_across_directories() -> None:
+    """SPEC.md names a fixture, not a path, so two cases with one name make a
+    reference ambiguous — and a dict keyed on the name resolves it by sort
+    order, which is not a decision anybody made. Two plugins each had a case
+    called `handshake`, and H1's fixture reference was validating whichever of
+    them sorted last."""
+    seen: dict[str, str] = {}
+    for name, _ in ALL_CASES:
+        stem = pathlib.Path(name).stem
+        assert stem not in seen, f"{name} and {seen[stem]} share the name {stem!r}"
+        seen[stem] = name
 
 
 @pytest.mark.parametrize("clause", CLAUSES)

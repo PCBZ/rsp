@@ -81,6 +81,24 @@ describe("respond", () => {
     assert.ok("reason" in response && response.reason.length > 0, "BLOCK should say why");
   });
 
+  it("blocks on a finding with no position rather than allowing the chunk", () => {
+    // A report item missing its position fields cannot become a span. It is
+    // still gitleaks saying it found something, so the chunk is blocked — the
+    // same path a mislocated finding takes, for the same reason.
+    reporting([{ RuleID: "aws-access-token", Match: KEY }]);
+    const response = respond({ hook: "on_chunk", content: `deploy with ${KEY} today` });
+    assert.equal("verdict" in response && response.verdict, "BLOCK");
+  });
+
+  it("refuses to answer at all when the report is not a report", () => {
+    // Nothing sensible can be said about unparseable output, so the plugin
+    // dies without a response and the host's error path decides (E1, D3).
+    process.env.RSP_GITLEAKS = FAKE;
+    process.env.FAKE_GITLEAKS_REPORT = "not json";
+    process.env.FAKE_GITLEAKS_EXIT = "2";
+    assert.throws(() => respond({ hook: "on_chunk", content: "anything" }));
+  });
+
   it("declares itself with the wrapped tool's version in its own", () => {
     // D4: a cache keyed on the adapter's version alone would keep serving
     // verdicts from a ruleset that has since changed.
