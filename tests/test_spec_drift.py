@@ -92,7 +92,10 @@ ISSUE_REFERENCE = re.compile(r"(?<!\]\()#\d+")
 DURABLE_TEXT = (
     sorted((ROOT / "rsp").glob("*.py"))
     + sorted((ROOT / "plugins").rglob("*.py"))
-    + [ROOT / "SPEC.md", ROOT / "conformance" / "cases" / "README.md"]
+    # pyproject.toml was outside this list, and carried two issue numbers in a
+    # comment explaining a plan that had already been abandoned. A guard with a
+    # hole in it reads exactly like a guard.
+    + [ROOT / "SPEC.md", ROOT / "conformance" / "cases" / "README.md", ROOT / "pyproject.toml"]
 )
 
 

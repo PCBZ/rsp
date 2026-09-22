@@ -1,8 +1,12 @@
 """LlamaIndex adapters: the host side of the protocol.
 
-Written against the real llama-index-core 0.14.24 API, calling an ``rsp.runtime``
-that does not exist. The runtime's API is whatever this file needs it to be;
-SPEC.md is reverse-engineered from that, not the other way round.
+Written against the real llama-index-core 0.14.24 API, and originally against
+an ``rsp.runtime`` that did not exist yet: the runtime's API is what this file
+needed it to be, and SPEC.md was reverse-engineered from that.
+
+Pass ``store_doc_text=False`` to ``IngestionPipeline.run`` when a docstore is
+configured: it writes documents down a path no transformation sees, and K1
+counts that as storing them.
 
 Verified signatures:
     TransformComponent.__call__(nodes: Sequence[BaseNode], **kwargs) -> Sequence[BaseNode]

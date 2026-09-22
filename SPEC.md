@@ -85,10 +85,17 @@ stdout.*
 | `on_chunk` | After chunking, before embedding | Never indexed |
 | `on_retrieve` | After a retrieval hit, before the content reaches a model | Dropped from this result set |
 
-**K1.** Content blocked at `on_chunk` MUST NOT be embedded or stored.
+**K1.** Content blocked at `on_chunk` MUST NOT be embedded or stored. **Stored**
+means stored anywhere the host writes, including stores it writes outside the
+hook path — a document cache, a deduplication record that keeps text, an audit
+log.
 *Rationale: the reason this protocol exists. Everything shipping today
 intercepts after storage, where content stays recoverable through embedding
-inversion. This is the only hook where blocked means it was never there.*
+inversion. This is the only hook where blocked means it was never there — and a
+host that guards the vector store while a second store keeps the same text has
+not blocked anything, which is easy to do by accident: the reference host's
+framework writes documents to a document store by default, down a path no hook
+can see.*
 
 **K2.** `BLOCK` at `on_retrieve` removes the item from the result set. It does
 not remove anything already stored.
