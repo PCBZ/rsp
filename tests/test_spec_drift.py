@@ -16,10 +16,18 @@ SPEC = (ROOT / "SPEC.md").read_text()
 CLAUSES = dict(
     re.findall(r"\*\*([A-Z]+\d+)\.\*\*(.*?)(?=\n\*\*[A-Z]+\d+\.\*\*|\n---|\n## )", SPEC, re.DOTALL)
 )
-CASES = {
-    p.stem: json.loads(p.read_text())
-    for p in sorted((ROOT / "conformance" / "cases").glob("*.json"))
-}
+# rglob, not glob: cases live in subdirectories once a second plugin has its
+# own set, and a guard that cannot see them reports green while the coverage
+# table goes stale.
+CASE_ROOT = ROOT / "conformance" / "cases"
+ALL_CASES = [
+    (p.relative_to(CASE_ROOT).as_posix(), json.loads(p.read_text()))
+    for p in sorted(CASE_ROOT.rglob("*.json"))
+]
+# Keyed by stem for the fixture references in SPEC.md, which name a case rather
+# than a path. Coverage is counted from ALL_CASES instead, because a dict drops
+# a repeated name — which is what the uniqueness test below exists to prevent.
+CASES = {pathlib.Path(name).stem: case for name, case in ALL_CASES}
 OPEN_QUESTIONS = set(re.findall(r"\| (Q\d) \|", SPEC[SPEC.find("## 9. Open questions") :]))
 
 # R1 is proved by rsp-echo existing at all, not by a case file.
@@ -42,6 +50,19 @@ def test_fixture_references_point_at_real_cases(clause: str) -> None:
             assert name in CASES, f"{clause} references a case that does not exist"
 
 
+def test_case_names_are_unique_across_directories() -> None:
+    """SPEC.md names a fixture, not a path, so two cases with one name make a
+    reference ambiguous — and a dict keyed on the name resolves it by sort
+    order, which is not a decision anybody made. Two plugins each had a case
+    called `handshake`, and H1's fixture reference was validating whichever of
+    them sorted last."""
+    seen: dict[str, str] = {}
+    for name, _ in ALL_CASES:
+        stem = pathlib.Path(name).stem
+        assert stem not in seen, f"{name} and {seen[stem]} share the name {stem!r}"
+        seen[stem] = name
+
+
 @pytest.mark.parametrize("clause", CLAUSES)
 def test_no_clause_cites_a_settled_question(clause: str) -> None:
     """A citation outlives its question silently — V4 kept pointing at Q1 in
@@ -60,9 +81,9 @@ def test_no_comment_cites_a_settled_question(source: pathlib.Path) -> None:
         assert ref in OPEN_QUESTIONS, f"{source.name} cites {ref}, which is no longer open"
 
 
-@pytest.mark.parametrize("name", CASES)
-def test_every_case_names_a_clause_the_spec_defines(name: str) -> None:
-    for clause in clauses_in(CASES[name]["clause"]):
+@pytest.mark.parametrize(("name", "case"), ALL_CASES, ids=[name for name, _ in ALL_CASES])
+def test_every_case_names_a_clause_the_spec_defines(name: str, case: dict) -> None:
+    for clause in clauses_in(case["clause"]):
         assert clause in CLAUSES, f"case {name} claims a clause the spec does not define"
 
 
@@ -105,6 +126,6 @@ def test_the_on_error_values_match_the_spec() -> None:
 
 def test_coverage_table_matches_the_cases_on_disk() -> None:
     claimed = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))
-    actual = {c for case in CASES.values() for c in clauses_in(case["clause"])}
+    actual = {c for _, case in ALL_CASES for c in clauses_in(case["clause"])}
     assert actual - claimed == set(), "cases cover clauses §10 still lists as uncovered"
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"
