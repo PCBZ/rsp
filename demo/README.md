@@ -1,84 +1,46 @@
 # Demo
 
-Eight documents that read like an internal wiki. Two of them have a credential
-in the place credentials actually end up: pasted into a runbook during an
-incident, and never taken out. Both are fabricated.
+Eight documents that read like an internal wiki. Two have a credential in the
+place credentials end up: pasted into a runbook during an incident, never
+taken out. Both fabricated. Run from the repository root:
 
 ```console
 $ rsp ingest demo/sample-docs --config demo/rsp.toml
 scanned 11 chunks
-  REDACT aws-access-token   demo/sample-docs/deploy-notes.md:1-20
+  REDACT aws-access-token   demo/sample-docs/deploy-notes.md:1-14
   REDACT private-key        demo/sample-docs/runbook-backups.md:1-13
 11 chunks indexed, 0 blocked, 2 redacted
 ```
 
-Nothing of ours did the detecting: `demo/rsp.toml` names the gitleaks wrapper,
-and gitleaks is the unmodified binary.
+Nothing of ours detects: the config names the gitleaks wrapper, and gitleaks
+is the unmodified binary. Needs it on `PATH` (or `RSP_GITLEAKS`), `node`, and
+`uv sync --extra llamaindex`. The embedding is a stand-in — a demo that wants
+an API key is a demo nobody runs.
 
-## REDACT, not BLOCK
+**REDACT, not BLOCK.** A chunk with one credential in it is usually still
+worth having. BLOCK is for a finding the scanner cannot place, and for a
+scanner that cannot run: with `RSP_GITLEAKS=/nonexistent` the handshake fails
+and the command exits 1 — the host refuses to exist rather than indexing a
+corpus nobody scanned.
 
-The proposal illustrated this with `BLOCK`, and the real answer is better. A
-chunk with one credential in it is usually still worth having — the sentence
-around the secret is often the sentence somebody is searching for — so the
-credential is replaced and the chunk is indexed.
+**A line range, not a line.** The host never sees a span (S4), so it knows
+which chunk was judged, not where in it the finding was.
 
-`BLOCK` is what happens when the scanner finds something and cannot say where:
-redacting the rest would leave that one in place, so none of it goes
-downstream. Six of the eight documents are ordinary prose, including a meeting
-note that discusses credentials at length and an FAQ that explains redaction.
-Neither is flagged, which is the half of the claim that a corpus of nothing but
-secrets could not make.
+**Six of the eight are ordinary prose**, including a meeting note that spends
+a page on credential handling and an FAQ explaining redaction. Neither is
+flagged — the half of the claim a corpus of nothing but secrets cannot make.
 
-## The line range is a range on purpose
+## What chunking costs
 
-The host never sees a span (S4) — the runtime applies them and hands back
-content. So the report can say which chunk was judged, and not where in it the
-finding was. A single line number would send a reader to the top of a chunk and
-let them believe the secret is there.
+`on_chunk` sees one chunk at a time, and the private key is four lines:
 
-## Where the chunk size stops being an implementation detail
-
-`on_chunk` sees one chunk at a time, and a secret larger than a chunk is not in
-any of them. The private key in `runbook-backups.md` is four lines:
-
-| chunk size | chunks the key spans | detected |
+| chunk size | chunks it spans | detected |
 |---|---|---|
 | 512 | 1 | yes |
 | 256 | 1 | yes |
 | 128 | 2 | **no** |
 
-At 128 tokens neither fragment matches, because the rule needs `BEGIN` and
-`END` together. The key is indexed, in halves, by a host that did everything
-the specification asks. This is what `on_document` is reserved against
-(SPEC.md section 4), and it is a property of where the hook sits rather than of
-the scanner. The demo runs at 256.
-
-## When the scanner is missing
-
-```console
-$ RSP_GITLEAKS=/nonexistent rsp ingest demo/sample-docs --config demo/rsp.toml
-gitleaks: handshake failed (CRASHED)
-$ echo $?
-1
-```
-
-Not "everything was blocked" — the host refuses to exist. A plugin that cannot
-introduce itself fails at construction rather than mid-ingest (E2), so there is
-no window in which documents are indexed by a host whose scanner is gone.
-
-## Running it
-
-From the repository root — `demo/rsp.toml` names the wrapper by a relative
-path, and a command is resolved against the working directory the way the
-operating system resolves any command. A deployment would use an absolute path
-or something on `PATH`.
-
-Needs `gitleaks` on `PATH` (or `RSP_GITLEAKS`), `node`, and the extra:
-
-```bash
-uv sync --extra llamaindex
-```
-
-The embedding is a stand-in: a demo that asks for an API key is a demo nobody
-runs. What this shows is which chunks were kept, redacted, or refused — not
-retrieval quality.
+At 128 neither fragment matches — the rule needs `BEGIN` and `END` together —
+so the key is indexed in halves by a host that did everything the spec asks.
+This is what `on_document` is reserved against (SPEC.md section 4). The demo
+runs at 256.

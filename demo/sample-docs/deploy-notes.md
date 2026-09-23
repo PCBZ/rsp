@@ -1,9 +1,7 @@
 # Deploy notes
 
-The staging deploy is a single command. Production is the same command with a
-different profile, and a second pair of eyes.
-
-## Staging
+The staging deploy is a single command; production is the same command with a
+different profile and a second pair of eyes.
 
     ./deploy --env staging --region eu-west-1
 
@@ -14,7 +12,3 @@ this page during an incident and it was never taken out:
 
 Rotate that before the next release. It is in the incident channel too, which
 is a separate problem.
-
-## Production
-
-Same command, `--env prod`. The approval step is in the deploy tool, not here.
