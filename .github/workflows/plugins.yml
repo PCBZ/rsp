@@ -34,6 +34,9 @@ env:
   # One pin for both downloads: the binary, and the test files it is developed
   # against, which ship in the source archive and not in the release.
   GITLEAKS_VERSION: 8.30.1
+  # uv hardlinks from its cache, and nltk — which the sentence splitter pulls
+  # in — refuses to open a file with more than one link (CWE-59).
+  UV_LINK_MODE: copy
 
 jobs:
   gitleaks-ts:
