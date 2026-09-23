@@ -1,0 +1,5 @@
+{ "name": "error-noisy-diagnostics-are-not-an-error", "clause": "E3", "kind": "host",
+  "note": "A hundred kilobytes on stderr and a valid answer on stdout. Only the answer is the protocol’s: blocking because a plugin was talkative would make every debug build a refusal.",
+  "plugin": { "behaviour": "noisy", "reply": { "verdict": "FLAG", "reason": "seen", "severity": "low" } },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "FLAG", "content": "unchanged" } }

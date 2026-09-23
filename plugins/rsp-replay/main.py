@@ -12,6 +12,7 @@ answers is whatever the case wrote down.
 
 import json
 import os
+import pathlib
 import sys
 import time
 
@@ -25,12 +26,21 @@ DECLARATION = {
 
 
 def script() -> dict:
-    return json.loads(open(os.environ["RSP_REPLAY"], encoding="utf-8").read())
+    """The case, named by argument so one host case can run several of these."""
+    path = sys.argv[1] if len(sys.argv) > 1 else os.environ["RSP_REPLAY"]
+    return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
 
 def main() -> None:
     plan = script()
     request = json.loads(sys.stdin.read() or "{}")
+
+    # A hook this plugin should never have been asked about leaves no other
+    # trace: the case asserting a verdict cannot tell "not called" from
+    # "called and ignored".
+    if witness := os.environ.get("RSP_REPLAY_CALLS"):
+        with pathlib.Path(witness).open("a", encoding="utf-8") as log:
+            log.write(f"{request.get('hook')}\n")
 
     if request.get("hook") == "handshake":
         print(json.dumps(plan.get("declaration", DECLARATION)))
@@ -49,6 +59,11 @@ def main() -> None:
             print(json.dumps({"verdict": "ALLOW"}))
         case "silent":
             pass
+        case "noisy":
+            # A valid answer and a flood of diagnostics. Only the answer is
+            # the protocol's (E3).
+            print("x" * 100_000, file=sys.stderr)
+            print(json.dumps(plan["reply"]))
         case _:
             print(json.dumps(plan["reply"]))
 

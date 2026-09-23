@@ -1,0 +1,8 @@
+{ "name": "spans-the-severest-replacement-wins", "clause": "S6", "kind": "host",
+  "note": "Two plugins over one range, configured low first. The surviving replacement is the higher severity one, so the text a reader sees names the worse finding rather than whichever plugin was listed first.",
+  "plugins": [
+    { "reply": { "verdict": "REDACT", "spans": [{ "start": 5, "end": 16, "type": "a" }], "replacement": "[LOW]", "severity": "low" } },
+    { "reply": { "verdict": "REDACT", "spans": [{ "start": 5, "end": 16, "type": "b" }], "replacement": "[CRITICAL]", "severity": "critical" } }
+  ],
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "keep AAAAAAAAAAA keep" },
+  "expect": { "verdict": "REDACT", "content": "keep [CRITICAL] keep" } }

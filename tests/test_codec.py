@@ -90,7 +90,9 @@ def test_process_failures_reach_the_caller_unchanged() -> None:
 
 
 def test_round_trip_matches_the_conformance_case() -> None:
-    case = json.loads(pathlib.Path("conformance/cases/spans-are-utf8-bytes.json").read_text())
+    case = json.loads(
+        pathlib.Path("conformance/cases/spans-are-utf8-bytes.json").read_text(encoding="utf-8")
+    )
     reply = call(ECHO, case["request"])
     assert reply.ok
     assert reply.payload == case["expect"]["response"]

@@ -1,0 +1,5 @@
+{ "name": "spans-adjacent-coalesce", "clause": "S6", "kind": "host",
+  "note": "Touching but not overlapping. Applied separately they would put a replacement between two halves of one secret, which reads as two findings and hides that it is one.",
+  "plugin": { "reply": { "verdict": "REDACT", "spans": [{ "start": 5, "end": 10, "type": "a" }, { "start": 10, "end": 16, "type": "b" }], "replacement": "[X]" } },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "keep AAAAAAAAAAA keep" },
+  "expect": { "verdict": "REDACT", "content": "keep [X] keep" } }
