@@ -14,6 +14,8 @@ Each layer knows strictly less than the one above it, and the imports go one way
 - `rsp/spans.py` — byte offsets and redaction. Knows no verdicts.
 - `rsp/runtime.py` — the deciding layer: dispatch, compose, fail closed.
 - `rsp/guards.py` — LlamaIndex adapter. Knows no transport.
+- `rsp/config.py` — plugins from a file. Not in the spec; a host may ignore it.
+- `rsp/cli.py` — `rsp-validate`.
 - `plugins/*` — untrusted third-party code. Detection lives only here.
 
 A change that makes a lower layer import a higher one is a design change, not a
