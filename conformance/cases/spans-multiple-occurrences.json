@@ -1,7 +1,7 @@
 {
   "name": "spans-multiple-occurrences",
   "clause": "S2",
-  "plugin": "rsp-echo",
+  "plugin": "echo",
   "note": "Every occurrence, not only the first.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "a secret and another secret" },
   "expect": {

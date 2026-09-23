@@ -1,4 +1,4 @@
-{ "name": "non-ascii-prefix", "clause": "S1", "plugin": "rsp-gitleaks-ts",
+{ "name": "non-ascii-prefix", "clause": "S1", "plugin": "gitleaks",
   "note": "密钥 is 3 characters and 7 bytes. gitleaks reports byte columns because Go regexp indexes a byte slice, so the conversion is arithmetic — the cleanest evidence that S1 chose a unit a real tool already produces.",
   "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "密钥 AKIALALEMEL33243OLIB 在后面" },
   "expect": { "response": { "verdict": "REDACT", "spans": [{ "start": 7, "end": 27, "type": "aws-access-token" }], "replacement": "[REDACTED:secret]", "severity": "critical" } } }

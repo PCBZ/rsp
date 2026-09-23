@@ -1,0 +1,3 @@
+{ "name": "rsp-gitleaks-ts", "role": "gitleaks",
+  "source": ["node", "{dir}/src/main.ts"],
+  "toolchain": ["node"], "wraps": ["gitleaks"] }

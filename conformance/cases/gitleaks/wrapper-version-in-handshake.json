@@ -1,5 +1,5 @@
-{ "name": "wrapper-version-in-handshake", "clause": "H2", "plugin": "rsp-gitleaks-ts",
-  "note": "The version is asserted as a prefix: it carries the wrapped binary's version too, because a cache key contains the plugin version (D4) and for a wrapper it is the tool that decides verdicts.",
+{ "name": "wrapper-version-in-handshake", "clause": "H2", "plugin": "gitleaks",
+  "note": "The name is not asserted, because every implementation of this role has its own; H2 requires the field and the echo handshake case covers that. The version is asserted as a prefix: it carries the wrapped binary's version too, because a cache key contains the plugin version (D4) and for a wrapper it is the tool that decides verdicts.",
   "request": { "rsp_version": "0.1", "hook": "handshake" },
-  "expect": { "declaration": { "rsp_version": "0.1", "name": "rsp-gitleaks-ts", "hooks": ["on_chunk", "on_retrieve"], "deterministic": true },
+  "expect": { "declaration": { "rsp_version": "0.1", "hooks": ["on_chunk", "on_retrieve"], "deterministic": true },
               "version_prefix": "0.1.0+" } }

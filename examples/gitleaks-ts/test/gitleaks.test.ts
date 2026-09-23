@@ -117,6 +117,30 @@ describe("toSpans", () => {
     assert.deepEqual(toSpans([key(99, 99, 1, 20)], "one line"), []);
   });
 
+  it("drops a span the host would reject", () => {
+    const content = `密钥 ${KEY}`;
+    // subarray truncates rather than failing, so an end past the content can
+    // still slice to Match; offsets inside 密 are not a character.
+    const pastEnd = key(1, 1, 8, 400);
+    const insideRune: Finding = { ...key(1, 1, 2, 2), Match: "\ufffd" };
+
+    assert.deepEqual(toSpans([pastEnd], content), []);
+    assert.deepEqual(toSpans([insideRune], content), []);
+  });
+
+  it("drops a finding with an empty match", () => {
+    // Offsets inside a character, which the slice check alone would accept.
+    const finding: Finding = {
+      RuleID: "aws-access-token",
+      StartLine: 1,
+      EndLine: 1,
+      StartColumn: 3,
+      EndColumn: 2,
+      Match: "",
+    };
+    assert.deepEqual(toSpans([finding], "密钥"), []);
+  });
+
   it("drops a finding whose offsets do not slice the match back out", () => {
     // The check that makes the arithmetic self-auditing: gitleaks has had
     // off-by-one bugs in these columns, and a span nobody verified redacts the

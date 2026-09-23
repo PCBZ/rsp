@@ -1,0 +1,3 @@
+# Built by the workflow into the runner's temp directory, never here.
+gitleaks-go
+rsp-gitleaks-go
