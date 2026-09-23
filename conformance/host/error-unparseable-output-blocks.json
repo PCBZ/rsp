@@ -1,0 +1,5 @@
+{ "name": "error-unparseable-output-blocks", "clause": "E1", "kind": "host",
+  "note": "Output the host cannot parse is output the host cannot trust. Guessing at it is how a typo becomes a silent allow.",
+  "plugin": { "behaviour": "garbage" },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

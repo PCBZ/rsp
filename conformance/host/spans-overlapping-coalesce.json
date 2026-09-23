@@ -1,0 +1,5 @@
+{ "name": "spans-overlapping-coalesce", "clause": "S6", "kind": "host",
+  "note": "Two spans over one range are one redaction, not two. Applying them separately would place a replacement inside the text a later span still refers to.",
+  "plugin": { "reply": { "verdict": "REDACT", "spans": [{ "start": 5, "end": 12, "type": "a" }, { "start": 9, "end": 16, "type": "b" }], "replacement": "[X]" } },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "keep AAAAAAAAAAA keep" },
+  "expect": { "verdict": "REDACT", "content": "keep [X] keep" } }

@@ -1,0 +1,5 @@
+{ "name": "error-on-error-allow-lets-it-through", "clause": "E5", "kind": "host",
+  "note": "The same crash, configured differently. on_error is per plugin and applies to every failure of it, so an operator who accepts the risk says so once and in one place.",
+  "plugin": { "behaviour": "crash" }, "on_error": "allow",
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "ALLOW", "content": "unchanged" } }

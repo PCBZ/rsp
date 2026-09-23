@@ -1,0 +1,5 @@
+{ "name": "error-a-hang-times-out", "clause": "E4", "kind": "host",
+  "note": "The bound is per plugin and measured from the moment it starts. A host without one waits for a plugin that will never answer, and ingest stops rather than fails.",
+  "plugin": { "behaviour": "hang" }, "timeout": 0.5,
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

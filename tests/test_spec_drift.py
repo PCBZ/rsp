@@ -20,9 +20,13 @@ CLAUSES = dict(
 # own set, and a guard that cannot see them reports green while the coverage
 # table goes stale.
 CASE_ROOT = ROOT / "conformance" / "cases"
+HOST_ROOT = ROOT / "conformance" / "host"
+# Both kinds count toward coverage: a clause is covered when some case settles
+# it, and the seventeen §10 listed were uncovered precisely because only one
+# kind existed.
 ALL_CASES = [
-    (p.relative_to(CASE_ROOT).as_posix(), json.loads(p.read_text()))
-    for p in sorted(CASE_ROOT.rglob("*.json"))
+    (p.relative_to(p.parent.parent).as_posix(), json.loads(p.read_text()))
+    for p in sorted(CASE_ROOT.rglob("*.json")) + sorted(HOST_ROOT.glob("*.json"))
 ]
 # Keyed by stem for the fixture references in SPEC.md, which name a case rather
 # than a path. Coverage is counted from ALL_CASES instead, because a dict drops

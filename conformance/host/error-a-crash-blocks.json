@@ -1,0 +1,5 @@
+{ "name": "error-a-crash-blocks", "clause": "E1, E2", "kind": "host",
+  "note": "A plugin that dies without answering has said nothing, and nothing is not permission. E2: this arrives as a verdict rather than an exception.",
+  "plugin": { "behaviour": "crash" },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }
