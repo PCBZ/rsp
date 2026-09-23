@@ -131,7 +131,7 @@ def test_validate_prints_each_plugin_and_succeeds(
     config = tmp_path / "rsp.toml"
     config.write_text('[[plugins]]\nname = "gitleaks"\ncommand = ["node", "main.ts"]\n')
 
-    assert main(["validate", str(config)]) == 0
+    assert main([str(config)]) == 0
     printed = capsys.readouterr()
     assert "gitleaks: node main.ts" in printed.out
     assert "on_error=block" in printed.out, "the default worth seeing in the output"
@@ -145,11 +145,11 @@ def test_validate_reports_the_problem_and_fails(
     config = tmp_path / "rsp.toml"
     config.write_text('[[plugins]]\nname = "x"\ncommand = "gitleaks stdin"\n')
 
-    assert main(["validate", str(config)]) == 1
+    assert main([str(config)]) == 1
     assert "not a string" in capsys.readouterr().err
 
 
-def test_validate_needs_a_command() -> None:
+def test_validate_needs_a_config_path() -> None:
     with pytest.raises(SystemExit):
         main([])
 

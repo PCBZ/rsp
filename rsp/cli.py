@@ -1,4 +1,4 @@
-"""`rsp validate`: read a config and say what is wrong with it.
+"""`rsp-validate`: read a config and say what is wrong with it.
 
 Separate from loading on purpose. `load` raises on the first problem because a
 host that starts with half its guards is worse than one that does not start;
@@ -16,10 +16,8 @@ from rsp.runtime import ConfigError
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="rsp", description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    check = commands.add_parser("validate", help="check a config file")
-    check.add_argument("config", help="path to a TOML config")
+    parser = argparse.ArgumentParser(prog="rsp-validate", description=__doc__)
+    parser.add_argument("config", help="path to a TOML config")
     arguments = parser.parse_args(argv)
 
     try:
