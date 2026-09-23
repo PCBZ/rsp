@@ -17,6 +17,7 @@ it blocks, which is how a security control gets switched off by a typo.
 
 from __future__ import annotations
 
+import math
 import pathlib
 import tomllib
 from typing import Any
@@ -36,7 +37,7 @@ def load(path: str | pathlib.Path) -> list[Plugin]:
         document = tomllib.loads(file.read_text(encoding="utf-8"))
     except OSError as unreadable:
         raise ConfigError(f"{file}: {unreadable.strerror}") from unreadable
-    except tomllib.TOMLDecodeError as invalid:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as invalid:
         raise ConfigError(f"{file}: {invalid}") from invalid
     return plugins_from(document, where=str(file))
 
@@ -55,7 +56,17 @@ def plugins_from(document: Any, where: str = "config") -> list[Plugin]:
         # An empty list is a host with no guards, which is a thing to say out
         # loud rather than a file to accept in silence.
         raise ConfigError(f"{where}: no plugins configured")
-    return [_plugin(entry, f"{where}: plugins[{at}]") for at, entry in enumerate(declared)]
+    plugins = [_plugin(entry, f"{where}: plugins[{at}]") for at, entry in enumerate(declared)]
+    # The runtime refuses these too, since a Plugin list can also be built in
+    # Python. Refusing them here is what lets a check that starts nothing say
+    # so: names key the declarations, and a duplicate hands one plugin
+    # another's capabilities.
+    seen: set[str] = set()
+    for plugin in plugins:
+        if plugin.name in seen:
+            raise ConfigError(f"{where}: {plugin.name} configured twice")
+        seen.add(plugin.name)
+    return plugins
 
 
 def _plugin(entry: Any, where: str) -> Plugin:
@@ -71,9 +82,7 @@ def _plugin(entry: Any, where: str) -> Plugin:
         command=_command(entry["command"], f"{where}.command"),
         on_error=_on_error(entry.get("on_error"), f"{where}.on_error"),
         timeout=_positive(entry.get("timeout", DEFAULT_TIMEOUT), f"{where}.timeout"),
-        max_output=int(
-            _positive(entry.get("max_output", DEFAULT_MAX_OUTPUT), f"{where}.max_output")
-        ),
+        max_output=_bytes(entry.get("max_output", DEFAULT_MAX_OUTPUT), f"{where}.max_output"),
     )
 
 
@@ -108,6 +117,24 @@ def _on_error(value: Any, where: str) -> OnError:
 
 
 def _positive(value: Any, where: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+    """A bound, so nothing that fails to bound anything.
+
+    `timeout = nan` passed a `value <= 0` test, because every comparison with
+    NaN is false — and then so is every comparison a wait makes with it, which
+    is E4's bound switched off by a config value. `inf` says it out loud. TOML
+    spells both.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ConfigError(f"{where}: expected a positive number")
+    if not math.isfinite(value) or value <= 0:
+        raise ConfigError(f"{where}: expected a positive finite number, got {value}")
     return float(value)
+
+
+def _bytes(value: Any, where: str) -> int:
+    """A count of bytes, which a fraction is not: int() would round it away."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{where}: expected a whole number of bytes")
+    if value <= 0:
+        raise ConfigError(f"{where}: expected a positive number")
+    return value

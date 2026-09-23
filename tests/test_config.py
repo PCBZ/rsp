@@ -75,6 +75,12 @@ REJECTED = {
     "a zero timeout": ({"name": "x", "command": ["true"], "timeout": 0}, "positive"),
     "a negative timeout": ({"name": "x", "command": ["true"], "timeout": -1}, "positive"),
     "a boolean timeout": ({"name": "x", "command": ["true"], "timeout": True}, "positive"),
+    # TOML spells both, and `nan <= 0` is false, so the obvious check passes
+    # one through — and then so does every comparison a wait makes with it.
+    "a NaN timeout": ({"name": "x", "command": ["true"], "timeout": float("nan")}, "finite"),
+    "an infinite timeout": ({"name": "x", "command": ["true"], "timeout": float("inf")}, "finite"),
+    "a fractional size": ({"name": "x", "command": ["true"], "max_output": 2048.7}, "whole number"),
+    "a zero size": ({"name": "x", "command": ["true"], "max_output": 0}, "positive"),
     "a plugin that is not a table": ("gitleaks", "expected a table"),
 }
 
@@ -83,6 +89,24 @@ REJECTED = {
 def test_a_bad_entry_is_refused_and_says_why(entry: object, expected: str) -> None:
     with pytest.raises(ConfigError, match=expected):
         plugins_from({"plugins": [entry]})
+
+
+def test_two_plugins_may_not_share_a_name() -> None:
+    """The runtime refuses this at construction; refusing it here is what lets
+    a check that starts nothing report it."""
+    entry = {"name": "gitleaks", "command": ["true"]}
+
+    with pytest.raises(ConfigError, match="configured twice"):
+        plugins_from({"plugins": [entry, dict(entry)]})
+
+
+def test_a_file_that_is_not_utf8_is_refused(tmp_path: pathlib.Path) -> None:
+    """Not a crash: validate has a diagnostic and an exit code for this."""
+    config = tmp_path / "latin.toml"
+    config.write_bytes(b'[[plugins]]\nname = "caf\xe9"\ncommand = ["true"]\n')
+
+    with pytest.raises(ConfigError, match="latin.toml"):
+        load(config)
 
 
 def test_an_unknown_top_level_key_is_refused() -> None:
