@@ -7,6 +7,11 @@ on:
 
 permissions:
   contents: read
+# uv hardlinks packages from its cache, and nltk — which the sentence splitter
+# pulls in — refuses to open a file with more than one link (CWE-59). Copies
+# cost a second and make the venv look like a normal install.
+env:
+  UV_LINK_MODE: copy
 
 # Actions are pinned to commit SHAs: a tag is a mutable pointer, and whoever
 # can move it can run code on this runner with the job's token. Updates are

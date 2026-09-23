@@ -14,14 +14,14 @@ Verified signatures:
                                              query_bundle: QueryBundle | None = None)
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle, TransformComponent
 from pydantic import ConfigDict
 
-from rsp.runtime import Runtime, Verdict
+from rsp.runtime import Result, Runtime, Verdict
 
 
 def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
@@ -41,10 +41,17 @@ def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
 
 
 class RSPIngestGuard(TransformComponent):
-    """on_chunk. A blocked node is not returned, so it is never embedded."""
+    """on_chunk. A blocked node is not returned, so it is never embedded.
+
+    `on_block` is how an operator learns what was dropped: a blocked node
+    leaves no trace in the pipeline's output by design, and an index that is
+    quietly smaller than its source is the failure this protocol is supposed to
+    prevent being unable to explain itself.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     runtime: Runtime
+    on_block: Callable[[BaseNode, Result], None] | None = None
 
     def __call__(self, nodes: Sequence[BaseNode], **kwargs: Any) -> Sequence[BaseNode]:
         kept: list[BaseNode] = []
@@ -55,6 +62,8 @@ class RSPIngestGuard(TransformComponent):
                 metadata={"source": node.metadata.get("file_path"), "node_id": node.id_},
             )
             if result.verdict is Verdict.BLOCK:
+                if self.on_block is not None:
+                    self.on_block(node, result)
                 continue
             if result.verdict is Verdict.REDACT:
                 # Span application is the runtime's job, not the host's: the host

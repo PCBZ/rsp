@@ -25,7 +25,7 @@ dev = [
 ]
 
 [project.scripts]
-rsp-validate = "rsp.cli:main"
+rsp = "rsp.cli:main"
 
 [build-system]
 requires = ["hatchling"]

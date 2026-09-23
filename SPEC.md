@@ -107,6 +107,14 @@ data when they are not.*
 pluggable seam for response synthesis. `on_source` and `on_document` are
 reserved.
 
+A hook placed after splitting can only be asked about one chunk at a time, and
+a secret larger than a chunk is not in any of them. A four-line private key
+split across two chunks is two fragments, and a detector that needs the whole
+shape reports nothing about either — so the content is indexed, by a host that
+did everything this specification asks. This is the limitation `on_document`
+is reserved against, and it is a property of where the hook sits rather than
+of any plugin.
+
 ---
 
 ## 5. Request (M)
