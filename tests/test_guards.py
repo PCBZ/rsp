@@ -190,3 +190,18 @@ def test_tagging_a_node_twice_does_not_repeat_the_exclusions(echo: Runtime) -> N
     for keys in (node.excluded_embed_metadata_keys, node.excluded_llm_metadata_keys):
         assert len(keys) == len(set(keys)), keys
     assert set(node.excluded_embed_metadata_keys) >= set(node.metadata)
+
+
+def test_a_blocked_node_is_reported_to_the_host(echo: Runtime) -> None:
+    """A blocked node leaves no trace in the pipeline's output by design, so
+    an index quietly smaller than its source has to be able to explain itself."""
+    dropped: list[tuple[str, str]] = []
+    guard = RSPIngestGuard(
+        runtime=echo,
+        on_block=lambda node, result: dropped.append((node.get_content(), result.verdict.value)),
+    )
+
+    kept = guard([TextNode(text=BLOCKED), TextNode(text=CLEAN)])
+
+    assert [node.get_content() for node in kept] == [CLEAN]
+    assert dropped == [(BLOCKED, "BLOCK")]
