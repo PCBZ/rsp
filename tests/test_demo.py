@@ -6,6 +6,7 @@ cannot drift from what the demo does.
 
 from __future__ import annotations
 
+import builtins
 import pathlib
 import shutil
 import sys
@@ -109,8 +110,21 @@ def test_the_command_prints_the_summary(gitleaks: None, capsys: pytest.CaptureFi
 def test_the_command_explains_a_missing_extra(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The only sentence a user sees when they installed rsp without it."""
-    monkeypatch.setitem(sys.modules, "rsp.ingest", None)
+    """The only sentence a user sees when they installed rsp without it.
+
+    llama_index is refused rather than `rsp.ingest`, because that is where it
+    is missing: `rsp.ingest` imports the framework inside its functions, so
+    importing the module succeeds and the call is what fails. A test that
+    breaks the module import passes while the message never fires.
+    """
+    real = builtins.__import__
+
+    def without_llama_index(name: str, *rest: object, **kwargs: object) -> object:
+        if name.startswith("llama_index"):
+            raise ImportError(f"No module named {name!r}")
+        return real(name, *rest, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(builtins, "__import__", without_llama_index)
 
     assert main(["ingest", str(DOCS), "--config", str(CONFIG)]) == 1
     assert "llamaindex" in capsys.readouterr().err
@@ -149,3 +163,32 @@ def test_a_node_without_a_source_still_reports_a_range() -> None:
     from rsp.ingest import _lines_of
 
     assert _lines_of(TextNode(text="anything")) == "?"
+
+
+def test_the_range_covers_the_chunk_as_it_was_read(gitleaks: None) -> None:
+    """Not as it was left: redaction rewrites the text, so counting newlines
+    in a redacted node reports a range that stops before the secret does. The
+    key in the runbook ends on line 15."""
+    [finding] = [one for one in ingest(DOCS, load(CONFIG)).redacted if "backups" in one.source]
+
+    first, last = (int(part) for part in finding.lines.split("-"))
+    assert last >= 15, f"{finding.lines} does not reach the end of the key"
+    assert first == 1
+
+
+def test_a_missing_scanner_fails_before_the_corpus_is_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runtime is constructed first, so a plugin that cannot introduce
+    itself costs nothing else — and the failure is the handshake's, not a
+    splitter's."""
+    monkeypatch.setenv("RSP_GITLEAKS", "/nonexistent/gitleaks")
+    if shutil.which("node") is None:
+        pytest.skip("the wrapper needs node")
+    seen: list[pathlib.Path] = []
+    monkeypatch.setattr("rsp.ingest.documents", lambda directory: seen.append(directory))
+
+    with pytest.raises(ConfigError, match="handshake"):
+        ingest(DOCS, load(CONFIG))
+
+    assert not seen, "the corpus was read before the plugin was checked"

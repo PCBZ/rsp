@@ -55,15 +55,16 @@ def _validate(plugins: list[Plugin]) -> int:
 
 def _ingest(directory: pathlib.Path, plugins: list[Plugin]) -> int:
     try:
+        # Importing `rsp.ingest` proves nothing: it imports llama_index inside
+        # its functions, so the extra is missing at the call and not here.
         from rsp.ingest import ingest
+
+        report = ingest(directory, plugins)
     except ImportError:
         print(
             "rsp ingest needs the llamaindex extra: pip install 'rsp[llamaindex]'", file=sys.stderr
         )
         return 1
-
-    try:
-        report = ingest(directory, plugins)
     except (ConfigError, FileNotFoundError) as wrong:
         print(wrong, file=sys.stderr)
         return 1

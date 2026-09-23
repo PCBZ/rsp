@@ -14,9 +14,12 @@ $ echo '{"rsp_version":"0.1","hook":"handshake"}' | go run .
 {"rsp_version":"0.1","name":"rsp-gitleaks-go","version":"0.1.0+8.30.1",...}
 ```
 
-Needs `gitleaks` on `PATH`, or `RSP_GITLEAKS`. No dependencies. Build it before
-using it as a plugin — `go run` compiles on every call, and a call is a
-process (Q6).
+Needs `gitleaks` on `PATH`, or `RSP_GITLEAKS`. No dependencies.
+
+A host should point at a built binary rather than at `go run`, which compiles
+on every call and a call is a process (Q6). The conformance kit runs it from
+source by default so that a clone needs no build step, and CI builds it once
+and sets `RSP_PLUGIN_GITLEAKS_GO` — see `conformance.json`.
 
 Nothing converts here: a Go string is a byte slice, so `content[start:end]`
 already means what S1 says. The coordinate quirks that do need care are

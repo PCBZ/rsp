@@ -72,11 +72,13 @@ def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
     def record(node: BaseNode, result: Result) -> None:
         findings.append(_finding("BLOCK", result.provenance, node))
 
-    splitter = SentenceSplitter(chunk_size=CHUNK, chunk_overlap=0)
-    chunks = splitter(documents(directory))
+    # Before the splitter: a plugin that cannot introduce itself should fail
+    # here rather than after the corpus has been read and chunked.
+    runtime = Runtime(plugins)
+    chunks = SentenceSplitter(chunk_size=CHUNK, chunk_overlap=0)(documents(directory))
     kept = IngestionPipeline(
         transformations=[
-            RSPIngestGuard(runtime=Runtime(plugins), on_block=record),
+            RSPIngestGuard(runtime=runtime, on_block=record),
             MockEmbedding(embed_dim=8),
         ],
         # No docstore: with one, `store_doc_text` would persist the documents
@@ -110,9 +112,13 @@ def _lines_of(node: BaseNode) -> str:
     of a chunk and let them believe the secret is there.
     """
     source = node.metadata.get("file_path")
-    if source is None:
+    start = getattr(node, "start_char_idx", None)
+    end = getattr(node, "end_char_idx", None)
+    if source is None or start is None or end is None:
         return "?"
+    # From the offsets, not from the content: a redacted node has had its text
+    # rewritten, and a four-line key replaced by one marker would report a
+    # range that stops before the key ends.
     document = pathlib.Path(source).read_text(encoding="utf-8")
-    start = getattr(node, "start_char_idx", None) or 0
     first = document[:start].count("\n") + 1
-    return f"{first}-{first + node.get_content().count(chr(10))}"
+    return f"{first}-{first + document[start:end].count(chr(10))}"
