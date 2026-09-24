@@ -71,7 +71,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{role}\t{count} cases")
         return 0
 
-    command = [word for word in arguments.command if word != "--"]
+    # Only the leading separator is ours. A plugin whose own command needs a
+    # `--` would otherwise be run as a different command.
+    command = arguments.command[1:] if arguments.command[:1] == ["--"] else arguments.command
     if not command:
         parser.error("give the plugin command after --")
     if arguments.role and arguments.role not in available:

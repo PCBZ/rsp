@@ -49,7 +49,9 @@ def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) ->
             command,
             input=json.dumps(case["request"], ensure_ascii=escaped),
             capture_output=True,
-            text=True,
+            # Named, not the locale's: a request carrying 密钥 is UTF-8 on the
+            # wire whatever the machine running the kit has configured.
+            encoding="utf-8",
             check=False,
             timeout=TIMEOUT,
         )
@@ -57,6 +59,10 @@ def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) ->
         return Outcome(False, f"no answer within {TIMEOUT}s")
     except OSError as unstartable:
         return Outcome(False, f"could not start: {unstartable}")
+    except UnicodeDecodeError:
+        # The kit tests misbehaving plugins and cannot be stopped by one: bytes
+        # that are not text fail this case, not the run.
+        return Outcome(False, "output is not UTF-8")
 
     if proc.returncode != 0:
         return Outcome(False, f"exited {proc.returncode}: {proc.stderr.strip()[:200]}")
@@ -70,6 +76,10 @@ def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) ->
         got = json.loads(lines[0])
     except json.JSONDecodeError as unreadable:
         return Outcome(False, f"stdout is not JSON: {unreadable}")
+    if not isinstance(got, dict):
+        # T1 says one JSON object. `null` is valid JSON and not an object, and
+        # asking it for a field would end the run rather than the case.
+        return Outcome(False, f"expected a JSON object, got {type(got).__name__}")
 
     expect = case["expect"]
     if declaration := expect.get("declaration"):
