@@ -13,7 +13,15 @@ looks exactly like a passing one.
 
 from __future__ import annotations
 
+import pathlib
+import sys
+
 import pytest
+
+# The kit is shippable and therefore not a package: `conformance/run.py`
+# imports `harness` as a sibling, and the suite has to reach it the same way
+# rather than keeping a second copy of what a passing case means.
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "conformance"))
 
 COLUMNS = ("clause", "plugin")
 
