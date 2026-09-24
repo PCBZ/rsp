@@ -64,7 +64,8 @@ as UTF-8, so a host that accepts one fails later, somewhere else, holding
 content it can no longer put anywhere.*
 Fixtures: `json-duplicate-keys`, `json-huge-integers`, `json-lone-surrogates`,
 `json-nan-is-not-a-number`, `json-number-syntax-is-the-rfc-s`,
-`json-a-bom-is-not-whitespace`, `json-framing-whitespace-is-the-rfc-s`
+`json-a-bom-is-not-whitespace`, `json-framing-whitespace-is-the-rfc-s`,
+`json-a-host-does-not-send-what-it-refuses`
 
 ---
 

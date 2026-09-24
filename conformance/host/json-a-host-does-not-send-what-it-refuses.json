@@ -1,0 +1,23 @@
+{
+  "name": "json-a-host-does-not-send-what-it-refuses",
+  "clause": "T4",
+  "kind": "host",
+  "note": "An integer past 2^53 in the metadata a host attaches. T4 binds both directions, so the host has to refuse before the plugin ever sees it — and refusing is a failure like any other, which blocks (E1). A host that only checked what it received would send a message it would itself reject.",
+  "plugin": {
+    "reply": {
+      "verdict": "ALLOW"
+    }
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text",
+    "metadata": {
+      "n": 9007199254740993
+    }
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

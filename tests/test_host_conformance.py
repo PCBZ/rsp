@@ -82,7 +82,9 @@ def test_host_case(
 
     request = case["request"]
     started = time.monotonic()
-    result = Runtime(plugins).evaluate(request["hook"], request["content"])
+    result = Runtime(plugins).evaluate(
+        request["hook"], request["content"], metadata=request.get("metadata")
+    )
     elapsed = time.monotonic() - started
 
     expected = case["expect"]

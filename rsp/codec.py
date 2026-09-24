@@ -29,25 +29,29 @@ def encode(request: Mapping[str, Any]) -> bytes:
     Only call() promises never to raise, so it is call() that turns the
     ValueError into an outcome.
     """
-    text = json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     # Outbound too: T4 is about a message, and a request is one. A host that
     # sends what it would refuse has written a rule for everyone else.
-    for value in _numbers(request):
-        if isinstance(value, int) and abs(value) > SAFE_INTEGER:
-            raise ValueError(f"{value} is outside the interoperable range")
-    return text.encode("utf-8")
+    _sendable(request)
+    return json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
 
 
-def _numbers(value: Any) -> Any:
-    """Every scalar in a request, however deeply a host nested its metadata."""
+def _sendable(value: Any) -> None:
+    """Raise if any part of a request would violate T4 on the wire."""
     if isinstance(value, Mapping):
+        # `{1: "a", "1": "b"}` is two keys here and one key twice on the wire:
+        # json.dumps writes an integer key as a string without saying so.
+        written = [str(key) if isinstance(key, (int, float, bool)) else key for key in value]
+        if len(set(written)) != len(written):
+            raise ValueError("a key would be repeated once written")
         for nested in value.values():
-            yield from _numbers(nested)
+            _sendable(nested)
     elif isinstance(value, (list, tuple)):
         for nested in value:
-            yield from _numbers(nested)
-    else:
-        yield value
+            _sendable(nested)
+    elif isinstance(value, int) and not isinstance(value, bool) and abs(value) > SAFE_INTEGER:
+        raise ValueError(f"{value} is outside the interoperable range")
 
 
 def _reject_constant(token: str) -> Any:
