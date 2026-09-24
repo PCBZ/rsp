@@ -143,6 +143,9 @@ def test_the_plugin_keeps_its_own_separator(elsewhere: pathlib.Path) -> None:
 
     done = run(elsewhere, "--role", "echo", "--", sys.executable, "plugins/needs.py", "--", "inner")
 
-    # It answers ALLOW to everything, so it fails cases — but on the verdict,
-    # which means it was started with the arguments it asked for.
-    assert "exited 1" not in done.stdout, done.stdout
+    # Positive evidence that it ran: it asserts its own argv and would exit
+    # non-zero otherwise, so the cases it fails have to fail on the verdict it
+    # gave. "no `exited 1`" would also hold for a plugin never started.
+    assert done.returncode == 1, "cases ran and some failed, rather than an argument error"
+    assert "got {'verdict': 'ALLOW'}" in done.stdout, done.stdout + done.stderr
+    assert "2/10 cases for echo" in done.stderr, "the two an always-allow plugin passes"
