@@ -38,6 +38,10 @@ def script() -> dict:
 
 
 def main() -> None:
+    # The wire is UTF-8 (M1), not the locale's idea of it.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
+
     plan = script()
     request = json.loads(sys.stdin.read() or "{}")
 

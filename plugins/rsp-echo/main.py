@@ -68,6 +68,13 @@ def evaluate(request: dict) -> dict:
 
 
 def main() -> None:
+    # The wire is UTF-8 (M1), whatever locale the host was started in. Python
+    # picks the locale's encoding for stdin and stdout otherwise, which makes
+    # a plugin that works on one machine fail on another over content it never
+    # looked at.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
+
     # stdout is the protocol channel; diagnostics go to stderr (T2).
     print("rsp-echo: reading request", file=sys.stderr)
     request = json.load(sys.stdin)
