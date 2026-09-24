@@ -6,22 +6,39 @@ and nothing here imports the reference runtime. You are checking your plugin
 against the protocol, not against our implementation of it.
 
 ```console
-$ python conformance/run.py --role gitleaks -- node my-wrapper.js
-pass  gitleaks/aws-key
-pass  gitleaks/clean
+$ python conformance/run.py -- node my-wrapper.js
+
+== echo
+FAIL  verdict-block (utf-8): expected {...}, got {'verdict': 'ALLOW'}
 ...
-7/7 cases
+== gitleaks
+pass  gitleaks/aws-key
+...
+2/10 cases for echo
+7/7 cases for gitleaks
 clauses settled: H2, S1, V2, V3
 ```
 
-Exit code 1 if any case fails, 2 if the arguments are wrong. Every case runs
-twice, once with raw UTF-8 in the request and once with `\uXXXX` escapes: JSON
-permits both, and a plugin that decodes surrogate pairs wrong reports offsets
-that are wrong by two — invisibly, until content leaves the BMP.
+A plugin conforms to a **role** rather than in general, so asked without one
+the kit tries each and you read off which you are. Failures against a role you
+never claimed are information, not a verdict: the exit code is 0 when some
+role passed in full.
 
-`--role` selects which cases apply. `echo` is the marker-driven reference
-plugin; `gitleaks` is any adapter over that binary. See
-`cases/README.md` for what a role is and why a case names one.
+```console
+$ python conformance/run.py --list-roles
+echo      10 cases
+gitleaks  7 cases
+$ python conformance/run.py --role gitleaks -- node my-wrapper.js
+```
+
+Exit 1 if no role passed, 2 if the arguments are wrong. Every case runs twice,
+once with raw UTF-8 in the request and once with `\uXXXX` escapes: JSON permits
+both, and a plugin that decodes surrogate pairs wrong reports offsets that are
+wrong by two — invisibly, until content leaves the BMP.
+
+`echo` is the marker-driven reference plugin; `gitleaks` is any adapter over
+that binary. See `cases/README.md` for what a role is and why a case names
+one.
 
 ## Host cases
 

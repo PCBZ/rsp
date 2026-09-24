@@ -66,8 +66,30 @@ def test_a_plugin_that_fails_a_case_is_reported_and_exits_non_zero(
     assert "10/10" not in done.stderr
 
 
-def test_an_unknown_role_is_refused(elsewhere: pathlib.Path) -> None:
+def test_an_unknown_role_is_refused_and_names_the_real_ones(elsewhere: pathlib.Path) -> None:
     done = run(elsewhere, "--role", "nonesuch", "--", sys.executable, "plugins/rsp-echo/main.py")
 
     assert done.returncode == 2
     assert "no cases for role" in done.stderr
+    assert "echo" in done.stderr and "gitleaks" in done.stderr, "say what was available"
+
+
+def test_the_roles_can_be_listed_without_a_plugin(elsewhere: pathlib.Path) -> None:
+    """The first question is which cases apply, and answering it should not
+    require guessing the answer first."""
+    done = run(elsewhere, "--list-roles")
+
+    assert done.returncode == 0
+    assert "echo" in done.stdout and "gitleaks" in done.stdout
+
+
+def test_without_a_role_every_role_is_tried(elsewhere: pathlib.Path) -> None:
+    """A plugin conforms to a role rather than in general. Asked without one,
+    the kit reports each — the reference plugin answers markers, so it passes
+    the echo cases and fails the ones written for a gitleaks wrapper, which is
+    how its author learns which it is."""
+    done = run(elsewhere, "--", sys.executable, "plugins/rsp-echo/main.py")
+
+    assert done.returncode == 0, "passing one role in full is conformance to that role"
+    assert "10/10 cases for echo" in done.stderr
+    assert "cases for gitleaks" in done.stderr
