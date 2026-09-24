@@ -49,11 +49,12 @@ def test_every_clause_carries_a_rationale(clause: str) -> None:
 
 @pytest.mark.parametrize("clause", CLAUSES)
 def test_fixture_references_point_at_real_cases(clause: str) -> None:
-    for line in re.findall(r"Fixtures?: (.+)", CLAUSES[clause]):
+    # Up to the blank line or the next clause, so a list too long for one line
+    # is still one list. Reading only the first line dropped names silently
+    # until the empty-name check below started saying so.
+    for line in re.findall(r"Fixtures?: (.+?)(?=\n\n|\n\*|\Z)", CLAUSES[clause], re.DOTALL):
         for name in (n.strip().strip("`") for n in line.split(",")):
-            # A wrapped Fixtures: line parses its last entry as "", which said
-            # only "a case that does not exist" and not which one.
-            assert name, f"{clause}: a fixture reference is empty — is the line wrapped?"
+            assert name, f"{clause}: a fixture reference is empty"
             assert name in CASES, f"{clause} references {name!r}, which does not exist"
 
 

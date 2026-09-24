@@ -46,9 +46,13 @@ practice nothing is ever added.*
 Fixture: `unknown-fields-ignored`
 
 **T4.** A message MUST be JSON as RFC 8259 defines it, and MUST NOT rely on
-what any parser accepts beyond that. In particular an implementation MUST
-reject a message that repeats a key in one object, carries an integer outside
-±(2^53 − 1), or contains an unpaired surrogate.
+what any parser accepts beyond that — in either direction: a host MUST NOT
+send what it would refuse. Specifically, an implementation MUST reject a
+message that repeats a key in one object, carries an integer outside
+±(2^53 − 1), contains an unpaired surrogate, uses `NaN` or `Infinity`, writes
+a number the grammar does not allow (a leading zero, a leading `+`, a
+trailing dot), or is framed by anything other than space, tab, carriage
+return and line feed — a byte order mark included.
 *Rationale: every parser is lenient somewhere, and each one somewhere else.
 Python takes `NaN`, JavaScript loses an integer above 2^53, and duplicate keys
 are undefined in the RFC — last wins in three languages and first wins in
@@ -58,7 +62,9 @@ and the one that guesses is the one that gets it wrong. An unpaired surrogate
 is legal JSON and is not text: it survives parsing and cannot be written back
 as UTF-8, so a host that accepts one fails later, somewhere else, holding
 content it can no longer put anywhere.*
-Fixtures: `json-duplicate-keys`, `json-huge-integers`, `json-lone-surrogates`
+Fixtures: `json-duplicate-keys`, `json-huge-integers`, `json-lone-surrogates`,
+`json-nan-is-not-a-number`, `json-number-syntax-is-the-rfc-s`,
+`json-a-bom-is-not-whitespace`, `json-framing-whitespace-is-the-rfc-s`
 
 ---
 

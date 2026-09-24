@@ -29,9 +29,25 @@ def encode(request: Mapping[str, Any]) -> bytes:
     Only call() promises never to raise, so it is call() that turns the
     ValueError into an outcome.
     """
-    return json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    text = json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    # Outbound too: T4 is about a message, and a request is one. A host that
+    # sends what it would refuse has written a rule for everyone else.
+    for value in _numbers(request):
+        if isinstance(value, int) and abs(value) > SAFE_INTEGER:
+            raise ValueError(f"{value} is outside the interoperable range")
+    return text.encode("utf-8")
+
+
+def _numbers(value: Any) -> Any:
+    """Every scalar in a request, however deeply a host nested its metadata."""
+    if isinstance(value, Mapping):
+        for nested in value.values():
+            yield from _numbers(nested)
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            yield from _numbers(nested)
+    else:
+        yield value
 
 
 def _reject_constant(token: str) -> Any:
@@ -42,6 +58,11 @@ def _reject_constant(token: str) -> Any:
 # RFC 8259 §6: outside this range an implementation may lose precision, and
 # two hosts that round differently disagree about a span.
 SAFE_INTEGER = 2**53 - 1
+
+# RFC 8259 §2 allows exactly these around a value. `str.strip()` also removes
+# a non-breaking space and a line separator, which a strict parser refuses —
+# leniency in the framing is the same divergence as leniency in the grammar.
+WHITESPACE = " \t\n\r"
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -88,12 +109,13 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
     if not text.strip():
         return Outcome.EMPTY, None
 
+    body = text.lstrip(WHITESPACE)
     try:
-        payload, end = _DECODER.raw_decode(text.lstrip())
+        payload, end = _DECODER.raw_decode(body)
     except (json.JSONDecodeError, ValueError):
         return Outcome.MALFORMED, None  # ValueError: the NaN tokens _DECODER rejects
 
-    if text.lstrip()[end:].strip():
+    if body[end:].strip(WHITESPACE):
         return Outcome.MALFORMED, None  # a second object, or trailing noise
     if not isinstance(payload, dict):
         return Outcome.MALFORMED, None  # a list or a bare string is not a response

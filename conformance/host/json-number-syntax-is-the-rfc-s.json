@@ -1,0 +1,19 @@
+{
+  "name": "json-number-syntax-is-the-rfc-s",
+  "clause": "T4",
+  "kind": "host",
+  "note": "A leading zero. Also `+1` and a trailing dot elsewhere: accepted by several hand-written parsers and by none that follow the grammar. A host that takes them has widened the protocol for everyone who has to interoperate with it.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "{\"verdict\": \"ALLOW\", \"seen\": 007}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}
