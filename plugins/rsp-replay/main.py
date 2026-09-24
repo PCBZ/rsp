@@ -20,9 +20,15 @@ DECLARATION = {
     "rsp_version": "0.1",
     "name": "rsp-replay",
     "version": "0.1.0",
-    "hooks": ["on_chunk", "on_retrieve", "on_response"],
+    # Not on_response: the spec reserves it, and a plugin declaring a hook no
+    # host implements would be modelling something nobody can do.
+    "hooks": ["on_chunk", "on_retrieve"],
     "deterministic": True,
 }
+
+# Long enough to outlast any bound a case configures, short enough that a
+# leaked process is a nuisance rather than an hour of one.
+FOREVER = 30
 
 
 def script() -> dict:
@@ -50,7 +56,7 @@ def main() -> None:
         case "crash":
             sys.exit(3)
         case "hang":
-            time.sleep(3600)
+            time.sleep(FOREVER)
         case "garbage":
             print("this is not JSON")
         case "chatty":
@@ -64,8 +70,13 @@ def main() -> None:
             # the protocol's (E3).
             print("x" * 100_000, file=sys.stderr)
             print(json.dumps(plan["reply"]))
-        case _:
+        case None:
             print(json.dumps(plan["reply"]))
+        case unknown:
+            # Falling through to `reply` would exit non-zero on a missing key,
+            # which a host reads as a crash — so a typo in a case file would
+            # pass every case about crashing.
+            raise SystemExit(f"rsp-replay: no such behaviour: {unknown!r}")
 
 
 if __name__ == "__main__":

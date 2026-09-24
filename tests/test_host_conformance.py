@@ -23,10 +23,31 @@ CASES = sorted((ROOT / "conformance" / "host").glob("*.json"))
 REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
 
 
+# What rsp-replay knows how to do. A script it does not understand exits
+# non-zero, which a host reads as a crash — so an unchecked typo would pass
+# every case about crashing. Checked here rather than there for the reason
+# `rsp validate` exists: the side that starts nothing is the side that can
+# report.
+BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy"})
+NEEDS_REPLY = frozenset({"noisy"})
+
+
+def _checked(script: dict[str, Any], where: str) -> dict[str, Any]:
+    behaviour = script.get("behaviour")
+    if behaviour is not None and behaviour not in BEHAVIOURS:
+        pytest.fail(f"{where}: no such behaviour {behaviour!r}")
+    if (behaviour is None or behaviour in NEEDS_REPLY) and "reply" not in script:
+        pytest.fail(f"{where}: needs a reply")
+    if unknown := sorted(set(script) - {"behaviour", "reply", "declaration", "on_error"}):
+        pytest.fail(f"{where}: unknown key(s) {', '.join(unknown)}")
+    return script
+
+
 def _plugins(case: dict[str, Any], tmp_path: pathlib.Path) -> list[Plugin]:
     """One plugin per script. Composition clauses need more than one, and the
     order here is the configured order S6 breaks ties by."""
     declared = case.get("plugins") or [case["plugin"]]
+    declared = [_checked(script, f"plugins[{at}]") for at, script in enumerate(declared)]
     plugins = []
     for at, script in enumerate(declared):
         path = tmp_path / f"script-{at}.json"
