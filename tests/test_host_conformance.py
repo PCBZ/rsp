@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from rsp.process import DEFAULT_MAX_OUTPUT
 from rsp.runtime import OnError, Plugin, Runtime, Verdict
 
 ROOT = pathlib.Path(__file__).parent.parent
@@ -58,6 +59,7 @@ def _plugins(case: dict[str, Any], tmp_path: pathlib.Path) -> list[Plugin]:
                 command=[*REPLAY, str(path)],
                 on_error=OnError(script.get("on_error", case.get("on_error", "block"))),
                 timeout=case.get("timeout", 5.0),
+                max_output=case.get("max_output", DEFAULT_MAX_OUTPUT),
             )
         )
     return plugins
