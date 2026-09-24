@@ -76,7 +76,7 @@ MANIFEST = "conformance.json"
 def _load(path: pathlib.Path) -> Implementation:
     """One manifest. `{dir}` is where it lives and `{python}` is this
     interpreter, so a command works from any working directory."""
-    declared = json.loads(path.read_text())
+    declared = json.loads(path.read_text(encoding="utf-8"))
     fill = {"dir": str(path.parent), "python": sys.executable}
     return Implementation(
         name=declared["name"],

@@ -1,0 +1,5 @@
+{ "name": "spans-out-of-range-is-refused", "clause": "S3", "kind": "host",
+  "note": "A span past the end of the content cannot be applied, and a host that clamps it silently redacts something nobody asked about. Refusing is the only answer that does not invent one.",
+  "plugin": { "reply": { "verdict": "REDACT", "spans": [{ "start": 0, "end": 400, "type": "test" }], "replacement": "[X]" } },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "short" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

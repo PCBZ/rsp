@@ -25,7 +25,7 @@ CASES = sorted(CASE_ROOT.rglob("*.json"))
 RUNS = [
     (path, implementation)
     for path in CASES
-    for implementation in for_role(json.loads(path.read_text())["plugin"])
+    for implementation in for_role(json.loads(path.read_text(encoding="utf-8"))["plugin"])
 ]
 
 
@@ -45,7 +45,7 @@ def test_case(
     surrogate pairs wrong is off by two, invisibly, until content leaves the
     BMP."""
     path, implementation = run
-    case = json.loads(path.read_text())
+    case = json.loads(path.read_text(encoding="utf-8"))
     # What makes the report a matrix rather than a list (conftest.py).
     record_property("clause", case["clause"])
     record_property("plugin", implementation.name)

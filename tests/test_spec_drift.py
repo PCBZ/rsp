@@ -12,7 +12,7 @@ import re
 import pytest
 
 ROOT = pathlib.Path(__file__).parent.parent
-SPEC = (ROOT / "SPEC.md").read_text()
+SPEC = (ROOT / "SPEC.md").read_text(encoding="utf-8")
 CLAUSES = dict(
     re.findall(r"\*\*([A-Z]+\d+)\.\*\*(.*?)(?=\n\*\*[A-Z]+\d+\.\*\*|\n---|\n## )", SPEC, re.DOTALL)
 )
@@ -20,9 +20,13 @@ CLAUSES = dict(
 # own set, and a guard that cannot see them reports green while the coverage
 # table goes stale.
 CASE_ROOT = ROOT / "conformance" / "cases"
+HOST_ROOT = ROOT / "conformance" / "host"
+# Both kinds count toward coverage: a clause is covered when some case settles
+# it, and the seventeen §10 listed were uncovered precisely because only one
+# kind existed.
 ALL_CASES = [
-    (p.relative_to(CASE_ROOT).as_posix(), json.loads(p.read_text()))
-    for p in sorted(CASE_ROOT.rglob("*.json"))
+    (p.relative_to(p.parent.parent).as_posix(), json.loads(p.read_text(encoding="utf-8")))
+    for p in sorted(CASE_ROOT.rglob("*.json")) + sorted(HOST_ROOT.glob("*.json"))
 ]
 # Keyed by stem for the fixture references in SPEC.md, which name a case rather
 # than a path. Coverage is counted from ALL_CASES instead, because a dict drops
@@ -77,7 +81,7 @@ def test_no_clause_cites_a_settled_question(clause: str) -> None:
     ids=lambda p: p.name,
 )
 def test_no_comment_cites_a_settled_question(source: pathlib.Path) -> None:
-    for ref in set(re.findall(r"\bQ\d\b", source.read_text())):
+    for ref in set(re.findall(r"\bQ\d\b", source.read_text(encoding="utf-8"))):
         assert ref in OPEN_QUESTIONS, f"{source.name} cites {ref}, which is no longer open"
 
 
@@ -105,7 +109,7 @@ def test_no_issue_numbers_in_durable_text(path: pathlib.Path) -> None:
     issue keeps its number. Clause IDs — D6, S1, Q6 — resolve inside a clone,
     and SPEC.md must be readable by someone who has never seen the tracker.
     Say the reason, or cite the clause."""
-    found = ISSUE_REFERENCE.findall(path.read_text())
+    found = ISSUE_REFERENCE.findall(path.read_text(encoding="utf-8"))
     assert not found, f"{path.name} points at {found} instead of stating the reason"
 
 

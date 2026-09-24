@@ -1,0 +1,5 @@
+{ "name": "spans-inside-a-character-is-refused", "clause": "S3", "kind": "host",
+  "note": "Both ends must fall on a UTF-8 boundary. Slicing inside a character produces bytes that are not text, which is a different failure in every language.",
+  "plugin": { "reply": { "verdict": "REDACT", "spans": [{ "start": 1, "end": 2, "type": "test" }], "replacement": "[X]" } },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "密钥" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

@@ -1,0 +1,6 @@
+{ "name": "hooks-an-undeclared-hook-is-not-called", "clause": "H3", "kind": "host",
+  "note": "This plugin blocks everything it is asked about and declares only on_chunk. The verdict alone cannot tell not-called from called-and-ignored, so the case also asserts which hooks reached it.",
+  "plugin": { "declaration": { "rsp_version": "0.1", "name": "rsp-replay", "version": "0.1.0", "hooks": ["on_chunk"], "deterministic": true },
+              "reply": { "verdict": "BLOCK", "reason": "always" } },
+  "request": { "rsp_version": "0.1", "hook": "on_retrieve", "content": "ordinary text" },
+  "expect": { "verdict": "ALLOW", "content": "unchanged", "hooks_called": [] } }

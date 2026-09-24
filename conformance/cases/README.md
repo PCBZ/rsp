@@ -21,14 +21,27 @@ new language is a new directory. That file is a convention of this kit and not
 part of the protocol: a plugin cannot declare how to start it, because you
 have to start it to hear the declaration.
 
-## Host cases do not exist yet
+## Host cases
 
 Every case here is a **plugin case**: a request, and the response a conforming
-plugin must give. That shape cannot express a requirement on the host — H4 (a
-declaration may lower a host limit, never raise one), S3 (validate a span
-before using it), K1 (blocked content is never embedded), E1–E3 (a failure
-becomes BLOCK). No plugin response settles any of them.
+plugin must give. A requirement on the *host* needs the other direction, and
+those live in `conformance/host/`:
 
-`SPEC.md` section 10 lists those clauses as uncovered. That is the honest
-state: a clause tested only by our own unit tests has been verified for this
-implementation and for no other.
+```json
+{ "name": "...", "clause": "E1", "kind": "host",
+  "plugin": { "behaviour": "crash" },
+  "request": { ... },
+  "expect":  { "verdict": "BLOCK", "content": "unchanged" } }
+```
+
+`plugin` is a script for `plugins/rsp-replay`, which answers with whatever the
+case wrote down — or crashes, hangs, or prints nonsense on request. A real
+plugin will not fail on cue, and a clause about failure cannot be tested by a
+plugin that works.
+
+A host is a library rather than a process, so the kit cannot spawn one: the
+runner is per host. `tests/test_host_conformance.py` is this repository's, and
+it is twenty lines.
+
+`SPEC.md` section 10 says which clauses each kind still leaves uncovered, and
+why.
