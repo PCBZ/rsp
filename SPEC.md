@@ -45,6 +45,21 @@ Fixture: `stdout-is-protocol-only`
 practice nothing is ever added.*
 Fixture: `unknown-fields-ignored`
 
+**T4.** A message MUST be JSON as RFC 8259 defines it, and MUST NOT rely on
+what any parser accepts beyond that. In particular an implementation MUST
+reject a message that repeats a key in one object, carries an integer outside
+±(2^53 − 1), or contains an unpaired surrogate.
+*Rationale: every parser is lenient somewhere, and each one somewhere else.
+Python takes `NaN`, JavaScript loses an integer above 2^53, and duplicate keys
+are undefined in the RFC — last wins in three languages and first wins in
+others. A plugin sending `{"verdict":"ALLOW","verdict":"BLOCK"}` is not
+confused; it is asking two hosts to disagree about whether content is safe,
+and the one that guesses is the one that gets it wrong. An unpaired surrogate
+is legal JSON and is not text: it survives parsing and cannot be written back
+as UTF-8, so a host that accepts one fails later, somewhere else, holding
+content it can no longer put anywhere.*
+Fixtures: `json-duplicate-keys`, `json-huge-integers`, `json-lone-surrogates`
+
 ---
 
 ## 3. Handshake
@@ -309,11 +324,11 @@ short-circuits — is **not specified here**. No call site exercises it yet.
 
 ## 10. Fixture coverage
 
-Eighteen of the normative clauses are covered — seventeen by a case, and R1
-by the reference plugin existing at all. The rest are not, and this section
+Twenty of the normative clauses are covered — nineteen by a case, and R1 by
+the reference plugin existing at all. The rest are not, and this section
 exists so that the gap is a stated position rather than an oversight.
 
-| Covered | R1, T2, T3, H1, H2, H3, M2, V1, V2, V3, S1, S2, S3, S6, E1, E2, E3, E4, E5 |
+| Covered | R1, T2, T3, T4, H1, H2, H3, M2, V1, V2, V3, S1, S2, S3, S6, E1, E2, E3, E4, E5 |
 |---|---|
 | **Not yet** | T1, H4, K1, K2, M1, S4, S5, S7, V4 |
 

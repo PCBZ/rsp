@@ -1,0 +1,19 @@
+{
+  "name": "json-duplicate-keys",
+  "clause": "T4",
+  "kind": "host",
+  "note": "BLOCK then ALLOW, in that order. A host that takes the last key — Python, Go and JavaScript all do — reads this as permission, and one that takes the first reads it as a refusal; the same bytes decide differently on different machines. Refusing is the only answer that does not depend on the parser.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "{\"verdict\": \"BLOCK\", \"verdict\": \"ALLOW\", \"reason\": \"x\"}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

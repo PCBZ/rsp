@@ -51,7 +51,10 @@ def test_every_clause_carries_a_rationale(clause: str) -> None:
 def test_fixture_references_point_at_real_cases(clause: str) -> None:
     for line in re.findall(r"Fixtures?: (.+)", CLAUSES[clause]):
         for name in (n.strip().strip("`") for n in line.split(",")):
-            assert name in CASES, f"{clause} references a case that does not exist"
+            # A wrapped Fixtures: line parses its last entry as "", which said
+            # only "a case that does not exist" and not which one.
+            assert name, f"{clause}: a fixture reference is empty — is the line wrapped?"
+            assert name in CASES, f"{clause} references {name!r}, which does not exist"
 
 
 def test_case_names_are_unique_across_directories() -> None:

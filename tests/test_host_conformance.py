@@ -29,7 +29,7 @@ REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
 # every case about crashing. Checked here rather than there for the reason
 # `rsp validate` exists: the side that starts nothing is the side that can
 # report.
-BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy"})
+BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw"})
 NEEDS_REPLY = frozenset({"noisy"})
 
 
@@ -39,7 +39,7 @@ def _checked(script: dict[str, Any], where: str) -> dict[str, Any]:
         pytest.fail(f"{where}: no such behaviour {behaviour!r}")
     if (behaviour is None or behaviour in NEEDS_REPLY) and "reply" not in script:
         pytest.fail(f"{where}: needs a reply")
-    if unknown := sorted(set(script) - {"behaviour", "reply", "declaration", "on_error"}):
+    if unknown := sorted(set(script) - {"behaviour", "reply", "raw", "declaration", "on_error"}):
         pytest.fail(f"{where}: unknown key(s) {', '.join(unknown)}")
     return script
 

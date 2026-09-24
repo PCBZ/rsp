@@ -1,0 +1,19 @@
+{
+  "name": "json-lone-surrogates",
+  "clause": "T4",
+  "kind": "host",
+  "note": "Legal JSON that is not text, in a field nothing else looks at. \\ud800 survives parsing and cannot be encoded back to UTF-8, so a host that accepts it is holding a message it cannot repeat.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "{\"verdict\": \"ALLOW\", \"note\": \"\\ud800\"}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

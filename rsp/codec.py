@@ -39,7 +39,38 @@ def _reject_constant(token: str) -> Any:
     raise ValueError(f"{token} is not JSON")
 
 
-_DECODER = json.JSONDecoder(parse_constant=_reject_constant)
+# RFC 8259 §6: outside this range an implementation may lose precision, and
+# two hosts that round differently disagree about a span.
+SAFE_INTEGER = 2**53 - 1
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """RFC 8259 leaves duplicates undefined, and parsers differ: last wins in
+    Python, Go and JavaScript, first wins elsewhere, some refuse. A plugin
+    sending `{"verdict":"ALLOW","verdict":"BLOCK"}` is asking two hosts to
+    disagree about whether content is safe, so this one refuses to guess.
+    """
+    seen: set[str] = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise ValueError(f"duplicate key {key!r}")
+        seen.add(key)
+    return dict(pairs)
+
+
+def _checked_number(token: str) -> int:
+    """Integers a JavaScript host could not read back unchanged."""
+    value = int(token)
+    if abs(value) > SAFE_INTEGER:
+        raise ValueError(f"{token} is outside the interoperable range")
+    return value
+
+
+_DECODER = json.JSONDecoder(
+    parse_constant=_reject_constant,
+    object_pairs_hook=_reject_duplicate_keys,
+    parse_int=_checked_number,
+)
 
 
 def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
@@ -66,6 +97,15 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
         return Outcome.MALFORMED, None  # a second object, or trailing noise
     if not isinstance(payload, dict):
         return Outcome.MALFORMED, None  # a list or a bare string is not a response
+    try:
+        # `\ud800` is legal JSON and not text: it survives parsing and cannot
+        # be written back as UTF-8. Checked on the parsed payload, because the
+        # escape is only a surrogate after the parser has read it — a host
+        # that accepts one fails later, somewhere else, holding content it can
+        # no longer put anywhere (M1).
+        encode(payload)
+    except (UnicodeEncodeError, ValueError):
+        return Outcome.MALFORMED, None
 
     return Outcome.OK, payload
 
