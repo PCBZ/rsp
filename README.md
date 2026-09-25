@@ -34,7 +34,8 @@ $ echo '{"rsp_version":"0.1","hook":"on_chunk","content":"key: AKIA47CQZHT2MVPF3
 ```
 
 Offsets are bytes into UTF-8, half-open. The host applies them; a plugin never
-sees the content again.
+sees the content again. [Writing a plugin](WRITING-A-PLUGIN.md) is the page to
+start from — the four messages, and the three things that bite.
 
 ## Try it
 
@@ -59,6 +60,7 @@ and the host cases.
 | | |
 |---|---|
 | `SPEC.md` | the protocol |
+| `WRITING-A-PLUGIN.md` | the on-ramp, quoting a plugin under test |
 | `conformance/` | cases, a runner, and a plugin that misbehaves on request |
 | `rsp/` | the reference host — five layers, one-way imports, zero dependencies |
 | `plugins/rsp-echo` | the reference plugin, whose verdicts are chosen by markers |

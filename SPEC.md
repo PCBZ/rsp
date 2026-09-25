@@ -11,6 +11,9 @@ inverted by the next person to read it.
 
 ---
 
+This document is normative and assumes you have decided to implement RSP.
+[Writing a plugin](WRITING-A-PLUGIN.md) is the introduction.
+
 ## 1. Roles
 
 **Host** — the RAG system. Calls plugins at defined points and acts on what they
