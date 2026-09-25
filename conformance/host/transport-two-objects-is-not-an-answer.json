@@ -1,0 +1,18 @@
+{
+  "name": "transport-two-objects-is-not-an-answer",
+  "clause": "T1",
+  "kind": "host",
+  "note": "Exactly one object on stdout. Two means the plugin treats the protocol channel as a log, and a host that reads the first cannot tell a stray line from a response — so neither is trusted.",
+  "plugin": {
+    "behaviour": "chatty"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

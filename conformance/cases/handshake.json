@@ -9,8 +9,7 @@
       "name": "rsp-echo",
       "version": "0.1.0",
       "hooks": ["on_chunk", "on_retrieve", "on_response"],
-      "deterministic": true,
-      "max_inline_bytes": 1048576
+      "deterministic": true
     }
   }
 }

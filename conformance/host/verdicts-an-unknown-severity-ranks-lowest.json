@@ -1,0 +1,45 @@
+{
+  "name": "verdicts-an-unknown-severity-ranks-lowest",
+  "clause": "S7",
+  "kind": "host",
+  "note": "One plugin says `critical`, the other says `spicy`. An unrecognised level ranks below every named one, so the replacement that survives is the one whose severity the protocol recognises — a plugin cannot outrank the scale by leaving it.",
+  "plugins": [
+    {
+      "reply": {
+        "verdict": "REDACT",
+        "spans": [
+          {
+            "start": 0,
+            "end": 6,
+            "type": "a"
+          }
+        ],
+        "replacement": "[UNKNOWN]",
+        "severity": "spicy"
+      }
+    },
+    {
+      "reply": {
+        "verdict": "REDACT",
+        "spans": [
+          {
+            "start": 0,
+            "end": 6,
+            "type": "b"
+          }
+        ],
+        "replacement": "[CRITICAL]",
+        "severity": "critical"
+      }
+    }
+  ],
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "secret the rest"
+  },
+  "expect": {
+    "verdict": "REDACT",
+    "content": "[CRITICAL] the rest"
+  }
+}

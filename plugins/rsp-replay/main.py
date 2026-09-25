@@ -49,8 +49,13 @@ def main() -> None:
     # trace: the case asserting a verdict cannot tell "not called" from
     # "called and ignored".
     if witness := os.environ.get("RSP_REPLAY_CALLS"):
+        # The hook, and the content as received. A scripted plugin does not
+        # read its input, so a case about what a plugin was shown — S5 — can
+        # only be answered by writing it down.
         with pathlib.Path(witness).open("a", encoding="utf-8") as log:
-            log.write(f"{request.get('hook')}\n")
+            log.write(
+                json.dumps({"hook": request.get("hook"), "content": request.get("content")}) + "\n"
+            )
 
     if request.get("hook") == "handshake":
         print(json.dumps(plan.get("declaration", DECLARATION)))
@@ -69,6 +74,10 @@ def main() -> None:
             print(json.dumps({"verdict": "ALLOW"}))
         case "silent":
             pass
+        case "flood":
+            # More stdout than any host would keep, to find out whether the
+            # limit is the host's or the one the declaration asked for (H4).
+            sys.stdout.write("x" * 100_000 + "\n")
         case "raw":
             # Verbatim, so a case can send what json.dumps would not: a
             # repeated key, an integer no parser agrees on, a lone surrogate.

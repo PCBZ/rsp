@@ -28,7 +28,6 @@ HANDSHAKE = {
     "version": "0.1.0",
     "hooks": ["on_chunk", "on_retrieve", "on_response"],
     "deterministic": True,
-    "max_inline_bytes": 1_048_576,
 }
 
 
