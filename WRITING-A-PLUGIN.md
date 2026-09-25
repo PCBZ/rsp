@@ -5,9 +5,10 @@ stdin, reads one from its stdout, and lets it exit. There is no SDK, no
 library to link, and no language requirement — if it can read stdin and write
 stdout, it can be a plugin.
 
-Every example here is quoted from `examples/gitleaks-ts`, which is a real
-plugin the conformance cases run against. A test checks that the quotes still
-match the file.
+The code excerpts are quoted from `examples/gitleaks-ts`, a real plugin the
+conformance cases run against, and a test checks each quote is still in the
+file it names. The `$` transcripts are invented — no plugin here is called
+`my-plugin` — so a test checks their JSON against the protocol instead.
 
 ## The whole of it
 
