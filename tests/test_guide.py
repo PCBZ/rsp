@@ -13,6 +13,8 @@ import re
 
 import pytest
 
+from rsp.spans import Span, valid_span
+
 ROOT = pathlib.Path(__file__).parent.parent
 GUIDE = ROOT / "WRITING-A-PLUGIN.md"
 
@@ -62,16 +64,28 @@ def test_the_byte_offset_example_is_arithmetic_that_holds() -> None:
     assert character != byte, "an example where they agree teaches nothing"
 
 
+COMMAND = re.compile(r"\$ echo '([^']+)' \| my-plugin")
+# The response is whatever follows the command, so a transcript that lost its
+# reply is a `None` this test must fail on rather than a pair it never sees.
+EXCHANGE = re.compile(COMMAND.pattern + r"\n([^\n]*)")
+
+
 def test_the_invented_transcripts_are_valid_protocol() -> None:
     """The `$` examples show a plugin that does not exist, so no quote can
     keep them honest — but a declaration missing a required field, or a span
-    outside its own content, would teach something the spec refuses."""
+    outside its own content, would teach something the spec refuses.
+    """
     text = GUIDE.read_text(encoding="utf-8")
-    exchanges = re.findall(r"\$ echo '([^']+)' \| my-plugin\n(\{[^\n]+)", text)
+    exchanges = EXCHANGE.findall(text)
+    # Counted apart from the pairs: a regex that only matches well-formed
+    # exchanges reports a malformed one as no exchange at all, and a test that
+    # skips what it cannot parse passes hardest on the transcript that broke.
+    assert len(exchanges) == len(COMMAND.findall(text)), "a transcript has no response"
     assert len(exchanges) >= 2, "the transcripts are no longer in the form the code can check"
 
     for raw_request, raw_response in exchanges:
         request, response = json.loads(raw_request), json.loads(raw_response)
+        assert isinstance(response, dict), f"a response is not an object: {raw_response}"
         assert request["rsp_version"] == "0.1"
 
         if request["hook"] == "handshake":
@@ -80,8 +94,14 @@ def test_the_invented_transcripts_are_valid_protocol() -> None:
             continue
 
         assert response["verdict"] in {"ALLOW", "FLAG", "REDACT", "BLOCK"}, "V1"
-        if response["verdict"] == "REDACT":
-            assert "replacement" in response, "V3"
-            content = request["content"].encode("utf-8")
-            for span in response["spans"]:
-                assert 0 <= span["start"] < span["end"] <= len(content), f"S3: {span}"
+        if response["verdict"] != "REDACT":
+            continue
+
+        assert "replacement" in response, "V3"
+        content = request["content"].encode("utf-8")
+        for span in response["spans"]:
+            # The host's own predicate, not a second copy of S3: a span landing
+            # inside a multi-byte character satisfies the arithmetic and is
+            # still refused by every conforming host.
+            assert valid_span(Span(span["start"], span["end"]), content), f"S3: {span}"
+            assert span["start"] < span["end"], "an empty span redacts nothing (S3)"
