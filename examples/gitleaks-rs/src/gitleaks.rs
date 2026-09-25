@@ -129,8 +129,12 @@ pub fn to_spans(findings: &[Finding], content: &str) -> Vec<Span> {
         .filter_map(|finding| {
             let from = origin(&origins, finding.start_line)?;
             let to = origin(&origins, finding.end_line)?;
-            let start = usize::try_from(from + finding.start_column - 1).ok()?;
-            let end = usize::try_from(to + finding.end_column).ok()?;
+            // Checked, because a column is a number someone else chose: added
+            // straight it overflows into a panic in debug and a wrapped span
+            // in release, where the answer owed is a dropped finding.
+            let start = from.checked_add(finding.start_column)?.checked_sub(1)?;
+            let end = to.checked_add(finding.end_column)?;
+            let (start, end) = (usize::try_from(start).ok()?, usize::try_from(end).ok()?);
             // What S3 will check, checked here: an adapter should not hand the
             // host a span it is going to reject, and in this language an
             // unchecked one takes the plugin down instead of the verdict.

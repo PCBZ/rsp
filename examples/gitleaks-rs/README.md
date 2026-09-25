@@ -24,7 +24,8 @@ step, and CI builds it once and sets `RSP_PLUGIN_GITLEAKS_RS` — see
 Two things this language makes explicit that the others hide:
 
 A byte offset that lands inside a character **panics** here, where Go quietly
-produces mojibake. So `usable` is not defensive; it is what stands between a
+produces mojibake, and so does arithmetic that overflows — where Go wraps and
+JavaScript loses precision, both of which the checks downstream absorb. So `usable` is not defensive; it is what stands between a
 malformed report and a plugin that dies instead of answering. Rust says out
 loud what S3 is for.
 

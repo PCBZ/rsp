@@ -130,6 +130,20 @@ fn drops_what_it_cannot_confirm() {
 }
 
 #[test]
+fn drops_a_column_that_cannot_be_added_to() {
+    // A report is data, and these numbers are the largest JSON can hand a
+    // 64-bit field. Unchecked they overflow, which is a panic in the debug
+    // build a clone runs through `cargo run` and a wrapped span in release —
+    // a plugin that dies or lies where it should have said BLOCK.
+    let far = finding("aws-access-token", (1, 1), (i64::MAX, i64::MAX), KEY);
+    let negative = finding("aws-access-token", (1, 1), (i64::MIN, i64::MIN), KEY);
+
+    for case in [far, negative] {
+        assert!(to_spans(&[case], KEY).is_empty());
+    }
+}
+
+#[test]
 fn drops_a_finding_with_no_position() {
     let bare = Finding {
         rule_id: "aws-access-token".into(),
