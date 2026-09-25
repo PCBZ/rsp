@@ -21,7 +21,7 @@ is LlamaIndex.
 ## What it is
 
 `SPEC.md` is the deliverable — twenty-eight clauses, each with the reasoning
-that produced it, twenty-four of them settled by a conformance case rather
+that produced it, twenty-three of them settled by a conformance case rather
 than by assertion. The code in `rsp/` is one host implementation, and exists
 to prove the clauses are implementable.
 
@@ -29,7 +29,7 @@ A plugin is a command. It reads one JSON object on stdin, writes one on
 stdout, and exits:
 
 ```console
-$ echo '{"rsp_version":"0.1","hook":"on_chunk","content":"key: AKIA..."}' | my-scanner
+$ echo '{"rsp_version":"0.1","hook":"on_chunk","content":"key: AKIA47CQZHT2MVPF3JXB"}' | my-scanner
 {"verdict":"REDACT","spans":[{"start":5,"end":25,"type":"aws"}],"replacement":"[REDACTED]"}
 ```
 

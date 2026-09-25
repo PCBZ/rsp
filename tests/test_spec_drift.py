@@ -142,7 +142,7 @@ def test_coverage_table_matches_the_cases_on_disk() -> None:
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"
 
 
-WORDS = {24: "twenty-four", 28: "twenty-eight"}
+WORDS = {23: "twenty-three", 24: "twenty-four", 28: "twenty-eight"}
 
 
 def test_the_counts_in_prose_match_the_clauses() -> None:
@@ -156,3 +156,29 @@ def test_the_counts_in_prose_match_the_clauses() -> None:
     assert stated, "section 10 no longer states the counts in the form the code can check"
     assert stated.group(1).lower() == WORDS[len(covered)], f"{len(covered)} clauses are covered"
     assert stated.group(2).lower() == WORDS[total], f"there are {total} clauses"
+
+
+def test_the_readme_agrees_with_the_spec() -> None:
+    """A third copy of the same numbers, and the one an outsider reads first.
+    R1 is covered without a case, so the README's count is one below the
+    table's — which is exactly the kind of difference that rots quietly."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    covered = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))
+
+    stated = re.search(
+        r"(\w+(?:-\w+)?) clauses, .*?(\w+(?:-\w+)?) of them settled", readme, re.DOTALL
+    )
+    assert stated, "the README no longer states the counts in the form the code can check"
+    assert stated.group(1).lower() == WORDS[len(CLAUSES)]
+    assert stated.group(2).lower() == WORDS[len(covered - COVERED_WITHOUT_A_CASE)]
+
+
+def test_the_readme_example_span_is_valid() -> None:
+    """The example teaches S1 and S3, so it has to obey them: a span outside
+    the content it is shown with would be refused by any conforming host."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    content = re.search(r'"content":"([^"]+)"', readme).group(1)
+    start, end = (int(n) for n in re.search(r'"start":(\d+),"end":(\d+)', readme).groups())
+
+    assert 0 <= start < end <= len(content.encode("utf-8")), f"{start}-{end} in {content!r}"
+    assert content.encode("utf-8")[start:end].decode("utf-8").startswith("AKIA")
