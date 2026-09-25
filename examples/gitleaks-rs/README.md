@@ -32,4 +32,6 @@ Nothing pumps a child's stdin for you. Go's `cmd.Stdin` and Node's streams
 both do it on something other than the calling thread, so neither can deadlock
 against a tool that writes its report before draining the chunk. This one
 spawns the writer itself, and `tests/protocol.rs` provokes exactly that order
-— the test hangs forever if the thread is removed.
+— the test hangs forever if the thread is removed. The stand-in generates the
+bytes that fill the pipe rather than being handed them: an argument has a
+length limit, Linux sets it near a pipe buffer, and macOS does not.

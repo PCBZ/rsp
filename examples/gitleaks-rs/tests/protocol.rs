@@ -10,16 +10,16 @@ const KEY: &str = "AKIALALEMEL33243OLIB";
 /// The report and the exit status ride in the command, not the environment:
 /// tests share one process, and one test's environment is every test's.
 fn fake(report: &str, exit: &str) -> Gitleaks {
-    staged(report, exit, "")
+    padded(report, exit, 0)
 }
 
-fn staged(report: &str, exit: &str, order: &str) -> Gitleaks {
+fn padded(report: &str, exit: &str, padding: usize) -> Gitleaks {
     let script = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/fake-gitleaks.sh");
     Gitleaks::new(vec![
         script.into(),
         report.into(),
         exit.into(),
-        order.into(),
+        padding.to_string(),
     ])
 }
 
@@ -110,15 +110,13 @@ fn declares_the_wrapped_tools_version_in_its_own() {
 
 #[test]
 fn survives_a_tool_that_writes_before_it_reads() {
-    // Both the chunk and the report exceed a pipe buffer, and the report
-    // comes first. Writing stdin from this thread would block on a child
-    // already blocked writing stdout, and neither side would ever move.
+    // The chunk and what the tool writes both exceed a pipe buffer, and the
+    // writing comes first. Sending stdin from this thread would block on a
+    // child already blocked on stdout, and neither side would ever move.
     let content = KEY.repeat(8000);
-    let huge = json!([{"RuleID": "x", "StartLine": 1, "EndLine": 1, "StartColumn": 1,
-                       "EndColumn": 1, "Match": "x".repeat(200_000)}])
-    .to_string();
+    let bare = json!([{"RuleID": "aws-access-token", "Match": KEY}]).to_string();
 
-    let got = respond(&staged(&huge, "2", "early"), &chunk(&content)).unwrap();
+    let got = respond(&padded(&bare, "2", 200_000), &chunk(&content)).unwrap();
 
     assert_eq!(got["verdict"], "BLOCK");
 }

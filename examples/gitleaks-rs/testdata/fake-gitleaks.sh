@@ -4,19 +4,20 @@
 # environment, because tests run on threads of one process and an environment
 # is shared by all of them.
 #
-# $1 report  $2 exit status  $3 "early" to write before draining stdin
+# $1 report  $2 exit status  $3 bytes of blank padding
 #
-# Draining stdin at all is the point of the default: a stand-in that exits
-# without reading makes the write fail rather than the status, and which of
-# the two the caller sees depends on the operating system. "early" is the
-# other order, which no version of gitleaks uses and every adapter has to
-# survive anyway — it is what fills the stdout pipe under a parent that is
-# still writing.
-if [ "${3:-}" = early ]; then
-  printf '%s' "${1:-}"
-  cat >/dev/null
-else
-  cat >/dev/null
-  printf '%s' "${1:-}"
+# Draining stdin before writing is what a real scan does, and doing it at all
+# is the point: a stand-in that exits without reading makes the write fail
+# rather than the status, and which of the two the caller sees depends on the
+# operating system.
+#
+# The padding is written first, and is how a test fills the stdout pipe while
+# stdin is still unread — the one order that deadlocks a parent writing the
+# chunk from its own thread. It is generated here rather than passed in
+# because an argument has a length limit and a pipe buffer is near it.
+if [ "${3:-0}" -gt 0 ]; then
+  head -c "$3" /dev/zero | tr '\0' ' '
 fi
+cat >/dev/null
+printf '%s' "${1:-}"
 exit "${2:-0}"
