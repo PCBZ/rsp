@@ -39,9 +39,11 @@ env:
   UV_LINK_MODE: copy
 
 jobs:
-  gitleaks-ts:
-    # The binary is a different build on each, and the pipe between the plugin
-    # and it belongs to the operating system.
+  gitleaks:
+    # One job for every adapter over this binary, because the cases are shared
+    # and a plugin that disagrees with its siblings is the finding. The binary
+    # is a different build on each runner, and the pipe between the plugin and
+    # it belongs to the operating system.
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +103,17 @@ jobs:
           go test ./...
           go build -o "${RUNNER_TEMP}/rsp-gitleaks-go" .
 
+      # Built once for the same reason, and released: a debug build of the
+      # Rust plugin spends longer starting than scanning.
+      - name: Build and test the Rust plugin
+        working-directory: examples/gitleaks-rs
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+          cargo build --release
+          cp target/release/rsp-gitleaks-rs "${RUNNER_TEMP}/rsp-gitleaks-rs"
+
       # Other people's test secrets, kept out of the checkout.
       - name: Fetch the corpus
         run: |
@@ -120,6 +133,7 @@ jobs:
           RSP_REQUIRE_ALL_PLUGINS: "1"
           RSP_GITLEAKS_CORPUS: ${{ runner.temp }}/corpus
           RSP_PLUGIN_GITLEAKS_GO: ${{ runner.temp }}/rsp-gitleaks-go
+          RSP_PLUGIN_GITLEAKS_RS: ${{ runner.temp }}/rsp-gitleaks-rs
 
       # always(): the report of a run that failed is the one worth reading.
       # One platform, like the coverage upload — a clause matrix is not

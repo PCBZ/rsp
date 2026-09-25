@@ -3,8 +3,8 @@
 An RSP plugin in Go: wraps the unmodified
 [gitleaks](https://github.com/gitleaks/gitleaks) binary.
 
-The same wrapper as `examples/gitleaks-ts`, in another language, over the same
-tool — so that "a plugin is a command, whatever it is written in" is
+The same wrapper as `examples/gitleaks-{ts,rs}`, in another language, over the
+same tool — so that "a plugin is a command, whatever it is written in" is
 demonstrated rather than argued. The seven conformance cases under
 `conformance/cases/gitleaks/` were written against the TypeScript one and pass
 against this one unchanged.
