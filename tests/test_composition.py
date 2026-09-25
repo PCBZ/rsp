@@ -282,3 +282,17 @@ def test_content_the_host_cannot_encode_is_blocked_before_any_plugin_runs() -> N
     assert result.blocked
     assert "not encodable" in result.reasons[0]
     assert "rsp.plugins" not in result.provenance  # nothing was consulted
+
+
+def test_evaluate_does_not_raise_on_metadata_that_contains_itself() -> None:
+    """E2 has no exceptions, including for a host that hands in something no
+    encoder can walk. Before the cycle check this was a RecursionError out of
+    evaluate, which is the one thing the clause forbids."""
+    cycle: dict[str, object] = {}
+    cycle["self"] = cycle
+    runtime = Runtime([Plugin(name="echo", command=ECHO)])
+
+    result = runtime.evaluate("on_chunk", "text", metadata=cycle)
+
+    assert result.verdict is Verdict.BLOCK
+    assert result.content == "text"

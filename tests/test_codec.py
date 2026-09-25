@@ -153,3 +153,22 @@ def test_an_integer_past_the_interoperable_range_is_not_sent() -> None:
 
 def test_ordinary_requests_still_encode() -> None:
     assert encode({"hook": "on_chunk", "content": "密钥", "metadata": {"n": 2**53 - 1}})
+
+
+def test_a_request_that_contains_itself_is_refused() -> None:
+    """Not a conformance case either: JSON has no cycles, so this exists only
+    in a host's own data structures. It matters because the refusal has to be
+    a ValueError — a RecursionError is not what the caller turns into a
+    verdict, and evaluate would raise, which E2 forbids."""
+    cycle: dict[str, object] = {}
+    cycle["self"] = cycle
+
+    with pytest.raises(ValueError, match="contain itself"):
+        encode({"hook": "on_chunk", "metadata": cycle})
+
+
+def test_the_same_object_twice_is_not_a_cycle() -> None:
+    """Shared structure is ordinary; only an ancestor of itself is a cycle."""
+    shared = {"x": 1}
+
+    assert encode({"hook": "on_chunk", "metadata": {"a": shared, "b": shared}})

@@ -37,8 +37,19 @@ def encode(request: Mapping[str, Any]) -> bytes:
     )
 
 
-def _sendable(value: Any) -> None:
-    """Raise if any part of a request would violate T4 on the wire."""
+def _sendable(value: Any, seen: frozenset[int] = frozenset()) -> None:
+    """Raise if any part of a request would violate T4 on the wire.
+
+    `seen` carries the containers above this one. Without it a host that
+    nested metadata inside itself recursed until Python gave up, and a
+    RecursionError is not the ValueError the caller turns into a verdict — so
+    `evaluate` raised, which E2 forbids. json.dumps refuses a cycle on its
+    own; this has to refuse one before it gets there.
+    """
+    if isinstance(value, (Mapping, list, tuple)):
+        if id(value) in seen:
+            raise ValueError("a request cannot contain itself")
+        seen = seen | {id(value)}
     if isinstance(value, Mapping):
         # `{1: "a", "1": "b"}` is two keys here and one key twice on the wire:
         # json.dumps writes an integer key as a string without saying so.
@@ -46,10 +57,10 @@ def _sendable(value: Any) -> None:
         if len(set(written)) != len(written):
             raise ValueError("a key would be repeated once written")
         for nested in value.values():
-            _sendable(nested)
+            _sendable(nested, seen)
     elif isinstance(value, (list, tuple)):
         for nested in value:
-            _sendable(nested)
+            _sendable(nested, seen)
     elif isinstance(value, int) and not isinstance(value, bool) and abs(value) > SAFE_INTEGER:
         raise ValueError(f"{value} is outside the interoperable range")
 
