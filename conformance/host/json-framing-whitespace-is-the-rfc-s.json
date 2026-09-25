@@ -1,0 +1,19 @@
+{
+  "name": "json-framing-whitespace-is-the-rfc-s",
+  "clause": "T4",
+  "kind": "host",
+  "note": "A non-breaking space before the object. RFC 8259 allows exactly space, tab, carriage return and line feed around a value, and `strip()` in several languages removes far more than that — so a message one host frames happily is malformed to the next.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": " {\"verdict\": \"ALLOW\"}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

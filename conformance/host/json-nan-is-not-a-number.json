@@ -1,0 +1,19 @@
+{
+  "name": "json-nan-is-not-a-number",
+  "clause": "T4",
+  "kind": "host",
+  "note": "NaN is not JSON. Python takes it by default and JavaScript refuses it, so a host inheriting its parser decides differently from the next one. Placed where nothing else validates it, so refusal can only come from the number.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "{\"verdict\": \"ALLOW\", \"seen\": NaN}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

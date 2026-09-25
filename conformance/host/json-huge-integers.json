@@ -1,0 +1,19 @@
+{
+  "name": "json-huge-integers",
+  "clause": "T4",
+  "kind": "host",
+  "note": "An integer above 2^53 in a field nothing else validates, so refusal can only come from the number itself. A JavaScript host reads 9007199254740993 back as 9007199254740992, and two hosts that round differently have parsed different messages.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "{\"verdict\": \"ALLOW\", \"seen\": 9007199254740993}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

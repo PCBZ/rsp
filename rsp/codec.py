@@ -29,9 +29,40 @@ def encode(request: Mapping[str, Any]) -> bytes:
     Only call() promises never to raise, so it is call() that turns the
     ValueError into an outcome.
     """
+    # Outbound too: T4 is about a message, and a request is one. A host that
+    # sends what it would refuse has written a rule for everyone else.
+    _sendable(request)
     return json.dumps(request, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
         "utf-8"
     )
+
+
+def _sendable(value: Any, seen: frozenset[int] = frozenset()) -> None:
+    """Raise if any part of a request would violate T4 on the wire.
+
+    `seen` carries the containers above this one. Without it a host that
+    nested metadata inside itself recursed until Python gave up, and a
+    RecursionError is not the ValueError the caller turns into a verdict — so
+    `evaluate` raised, which E2 forbids. json.dumps refuses a cycle on its
+    own; this has to refuse one before it gets there.
+    """
+    if isinstance(value, (Mapping, list, tuple)):
+        if id(value) in seen:
+            raise ValueError("a request cannot contain itself")
+        seen = seen | {id(value)}
+    if isinstance(value, Mapping):
+        # `{1: "a", "1": "b"}` is two keys here and one key twice on the wire:
+        # json.dumps writes an integer key as a string without saying so.
+        written = [str(key) if isinstance(key, (int, float, bool)) else key for key in value]
+        if len(set(written)) != len(written):
+            raise ValueError("a key would be repeated once written")
+        for nested in value.values():
+            _sendable(nested, seen)
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            _sendable(nested, seen)
+    elif isinstance(value, int) and not isinstance(value, bool) and abs(value) > SAFE_INTEGER:
+        raise ValueError(f"{value} is outside the interoperable range")
 
 
 def _reject_constant(token: str) -> Any:
@@ -39,7 +70,43 @@ def _reject_constant(token: str) -> Any:
     raise ValueError(f"{token} is not JSON")
 
 
-_DECODER = json.JSONDecoder(parse_constant=_reject_constant)
+# RFC 8259 §6: outside this range an implementation may lose precision, and
+# two hosts that round differently disagree about a span.
+SAFE_INTEGER = 2**53 - 1
+
+# RFC 8259 §2 allows exactly these around a value. `str.strip()` also removes
+# a non-breaking space and a line separator, which a strict parser refuses —
+# leniency in the framing is the same divergence as leniency in the grammar.
+WHITESPACE = " \t\n\r"
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """RFC 8259 leaves duplicates undefined, and parsers differ: last wins in
+    Python, Go and JavaScript, first wins elsewhere, some refuse. A plugin
+    sending `{"verdict":"ALLOW","verdict":"BLOCK"}` is asking two hosts to
+    disagree about whether content is safe, so this one refuses to guess.
+    """
+    seen: set[str] = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise ValueError(f"duplicate key {key!r}")
+        seen.add(key)
+    return dict(pairs)
+
+
+def _checked_number(token: str) -> int:
+    """Integers a JavaScript host could not read back unchanged."""
+    value = int(token)
+    if abs(value) > SAFE_INTEGER:
+        raise ValueError(f"{token} is outside the interoperable range")
+    return value
+
+
+_DECODER = json.JSONDecoder(
+    parse_constant=_reject_constant,
+    object_pairs_hook=_reject_duplicate_keys,
+    parse_int=_checked_number,
+)
 
 
 def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
@@ -57,15 +124,25 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
     if not text.strip():
         return Outcome.EMPTY, None
 
+    body = text.lstrip(WHITESPACE)
     try:
-        payload, end = _DECODER.raw_decode(text.lstrip())
+        payload, end = _DECODER.raw_decode(body)
     except (json.JSONDecodeError, ValueError):
         return Outcome.MALFORMED, None  # ValueError: the NaN tokens _DECODER rejects
 
-    if text.lstrip()[end:].strip():
+    if body[end:].strip(WHITESPACE):
         return Outcome.MALFORMED, None  # a second object, or trailing noise
     if not isinstance(payload, dict):
         return Outcome.MALFORMED, None  # a list or a bare string is not a response
+    try:
+        # `\ud800` is legal JSON and not text: it survives parsing and cannot
+        # be written back as UTF-8. Checked on the parsed payload, because the
+        # escape is only a surrogate after the parser has read it — a host
+        # that accepts one fails later, somewhere else, holding content it can
+        # no longer put anywhere (M1).
+        encode(payload)
+    except (UnicodeEncodeError, ValueError):
+        return Outcome.MALFORMED, None
 
     return Outcome.OK, payload
 

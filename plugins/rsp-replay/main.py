@@ -69,6 +69,10 @@ def main() -> None:
             print(json.dumps({"verdict": "ALLOW"}))
         case "silent":
             pass
+        case "raw":
+            # Verbatim, so a case can send what json.dumps would not: a
+            # repeated key, an integer no parser agrees on, a lone surrogate.
+            sys.stdout.write(plan["raw"] + "\n")
         case "noisy":
             # A valid answer and a flood of diagnostics. Only the answer is
             # the protocol's (E3).

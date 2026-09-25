@@ -130,3 +130,45 @@ def test_a_string_that_cannot_be_utf8_is_unencodable() -> None:
     reply = call([sys.executable, "-c", "pass"], {"hook": "on_chunk", "content": "\ud800"})
     assert reply.outcome is Outcome.UNENCODABLE
     assert reply.invocation is None  # nothing was spawned
+
+
+def test_a_key_that_repeats_once_written_is_refused() -> None:
+    """`{1: "a", "1": "b"}` is two keys in Python and one key twice on the
+    wire, because json.dumps writes an integer key as a string without saying
+    so — a host would send a message T4 requires it to reject.
+
+    Not a conformance case: a case file is JSON, which has no integer keys, so
+    the collision cannot survive being written down. It exists only inside a
+    host's own data structures.
+    """
+    with pytest.raises(ValueError, match="repeated"):
+        encode({"hook": "on_chunk", "metadata": {1: "a", "1": "b"}})
+
+
+def test_an_integer_past_the_interoperable_range_is_not_sent() -> None:
+    """T4 binds both directions, however deeply a host nested its metadata."""
+    with pytest.raises(ValueError, match="interoperable"):
+        encode({"hook": "on_chunk", "metadata": {"a": [{"n": 2**53}]}})
+
+
+def test_ordinary_requests_still_encode() -> None:
+    assert encode({"hook": "on_chunk", "content": "密钥", "metadata": {"n": 2**53 - 1}})
+
+
+def test_a_request_that_contains_itself_is_refused() -> None:
+    """Not a conformance case either: JSON has no cycles, so this exists only
+    in a host's own data structures. It matters because the refusal has to be
+    a ValueError — a RecursionError is not what the caller turns into a
+    verdict, and evaluate would raise, which E2 forbids."""
+    cycle: dict[str, object] = {}
+    cycle["self"] = cycle
+
+    with pytest.raises(ValueError, match="contain itself"):
+        encode({"hook": "on_chunk", "metadata": cycle})
+
+
+def test_the_same_object_twice_is_not_a_cycle() -> None:
+    """Shared structure is ordinary; only an ancestor of itself is a cycle."""
+    shared = {"x": 1}
+
+    assert encode({"hook": "on_chunk", "metadata": {"a": shared, "b": shared}})

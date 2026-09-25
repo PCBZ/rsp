@@ -1,0 +1,19 @@
+{
+  "name": "json-a-bom-is-not-whitespace",
+  "clause": "T4",
+  "kind": "host",
+  "note": "A byte order mark before the object. Some parsers skip it and the RFC does not allow it, so a plugin whose language writes one by default works against half the hosts it meets. Python refuses it without being asked; the case is here for the implementations that would not.",
+  "plugin": {
+    "behaviour": "raw",
+    "raw": "﻿{\"verdict\": \"ALLOW\"}"
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}
