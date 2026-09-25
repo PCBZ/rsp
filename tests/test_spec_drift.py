@@ -140,3 +140,19 @@ def test_coverage_table_matches_the_cases_on_disk() -> None:
     actual = {c for _, case in ALL_CASES for c in clauses_in(case["clause"])}
     assert actual - claimed == set(), "cases cover clauses §10 still lists as uncovered"
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"
+
+
+WORDS = {24: "twenty-four", 28: "twenty-eight"}
+
+
+def test_the_counts_in_prose_match_the_clauses() -> None:
+    """Section 10 says two numbers in words and the table says them in a list.
+    A number written twice disagrees with itself eventually — this one already
+    did, by one, in the commit that froze it."""
+    covered = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))
+    total = len(CLAUSES)
+
+    stated = re.search(r"(\w+(?:-\w+)?) of the (\w+(?:-\w+)?) normative clauses", SPEC)
+    assert stated, "section 10 no longer states the counts in the form the code can check"
+    assert stated.group(1).lower() == WORDS[len(covered)], f"{len(covered)} clauses are covered"
+    assert stated.group(2).lower() == WORDS[total], f"there are {total} clauses"

@@ -20,7 +20,7 @@ REQUIRED_DECLARATION_FIELDS = ("rsp_version", "name", "version", "hooks")
 class Handshake:
     """What a plugin says it is (H2). Only fields the host acts on: `hooks`
     gates dispatch (H3), `version` keys the cache (D4), `deterministic` decides
-    whether caching is legal, `max_inline_bytes` caps inline content (D5).
+    whether caching is legal.
     """
 
     rsp_version: str
@@ -28,20 +28,9 @@ class Handshake:
     version: str
     hooks: frozenset[str]
     deterministic: bool = False
-    max_inline_bytes: int | None = None
 
     def supports(self, hook: str) -> bool:
         return hook in self.hooks
-
-    def inline_limit(self, host_limit: int) -> int:
-        """The smaller of what the plugin accepts and what the host offers (H4).
-
-        Declarations lower a limit, never raise one: otherwise a plugin picks
-        how much memory the host spends on it.
-        """
-        return (
-            host_limit if self.max_inline_bytes is None else min(self.max_inline_bytes, host_limit)
-        )
 
 
 def _declaration(payload: Mapping[str, Any]) -> Handshake | None:
@@ -62,19 +51,12 @@ def _declaration(payload: Mapping[str, Any]) -> Handshake | None:
     if not isinstance(deterministic, bool):
         return None
 
-    max_inline = payload.get("max_inline_bytes")
-    if max_inline is not None and (
-        not isinstance(max_inline, int) or isinstance(max_inline, bool) or max_inline <= 0
-    ):
-        return None
-
     return Handshake(
         rsp_version=payload["rsp_version"],
         name=payload["name"],
         version=payload["version"],
         hooks=frozenset(hooks),
         deterministic=deterministic,
-        max_inline_bytes=max_inline,
     )
 
 

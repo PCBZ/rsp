@@ -29,7 +29,7 @@ REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
 # every case about crashing. Checked here rather than there for the reason
 # `rsp validate` exists: the side that starts nothing is the side that can
 # report.
-BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw"})
+BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw", "flood"})
 NEEDS_REPLY = frozenset({"noisy"})
 
 
@@ -98,6 +98,17 @@ def test_host_case(
         # Otherwise a host with its own longer bound passes a case about the
         # configured one: the verdict would be the same, five seconds later.
         assert elapsed < case["timeout"] * 4, f"took {elapsed:.1f}s for a {case['timeout']}s bound"
+    if wanted := expected.get("reason_contains"):
+        # The operator's half of V4: a reason the plugin gave has to arrive.
+        assert any(wanted in reason for reason in result.reasons), result.reasons
+    shown = [
+        json.loads(line)
+        for line in (calls.read_text(encoding="utf-8").splitlines() if calls.exists() else [])
+    ]
+    asked = [entry for entry in shown if entry["hook"] != "handshake"]
     if expected.get("hooks_called") is not None:
-        seen = calls.read_text(encoding="utf-8").split() if calls.exists() else []
-        assert [hook for hook in seen if hook != "handshake"] == expected["hooks_called"]
+        assert [entry["hook"] for entry in asked] == expected["hooks_called"]
+    if expected.get("every_plugin_saw_the_original"):
+        # S5: a scripted plugin answers the same whatever it is shown, so the
+        # only way to ask what it was shown is to have it write that down.
+        assert [entry["content"] for entry in asked] == [request["content"]] * len(asked)

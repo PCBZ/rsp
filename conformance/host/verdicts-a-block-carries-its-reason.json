@@ -1,0 +1,23 @@
+{
+  "name": "verdicts-a-block-carries-its-reason",
+  "clause": "V4",
+  "kind": "host",
+  "note": "SHOULD, not MUST — a plugin with nothing useful to say should not invent a string — but an operator facing a blocked chunk needs to know why, so a reason the plugin does give has to reach them.",
+  "plugin": {
+    "reply": {
+      "verdict": "BLOCK",
+      "reason": "matched a private key",
+      "severity": "critical"
+    }
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged",
+    "reason_contains": "private key"
+  }
+}

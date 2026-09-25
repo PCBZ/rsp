@@ -78,8 +78,7 @@ which would presume a persistent process (T1).*
 Fixture: `handshake`
 
 **H2.** A declaration MUST contain `rsp_version`, `name`, `version`, and
-`hooks`. It MAY contain `deterministic` (default `false`) and
-`max_inline_bytes`.
+`hooks`. It MAY contain `deterministic` (default `false`).
 *Rationale: `hooks` tells the host what not to call; `version` is part of the
 cache key; `deterministic` decides whether caching is legal at all — a plugin
 backed by a model must be able to say no. Everything else is speculative and is
@@ -89,16 +88,6 @@ left out until a plugin needs it.*
 *Rationale: otherwise `hooks` is decoration. A plugin that declares only
 `on_chunk` and is handed a retrieval hit has no way to refuse it, and its
 verdict for that hook means nothing.*
-
-**H4.** A declaration MAY lower a limit the host imposes. It MUST NOT raise one.
-`max_inline_bytes` above the host's own limit MUST be clamped to the host's.
-*Rationale: a declaration is a plugin's statement about itself, not a request
-for resources. A plugin that could raise the host's inline limit would choose
-how much memory the host spends on its behalf — the same attack the output
-limit in E1 exists to stop, arriving through the handshake instead of through
-stdout.*
-
----
 
 ## 4. Hooks
 
@@ -331,13 +320,12 @@ short-circuits — is **not specified here**. No call site exercises it yet.
 
 ## 10. Fixture coverage
 
-Twenty of the normative clauses are covered — nineteen by a case, and R1 by
-the reference plugin existing at all. The rest are not, and this section
-exists so that the gap is a stated position rather than an oversight.
+Twenty-four of the twenty-eight normative clauses are covered — twenty-three
+by a case, and R1 by the reference plugin existing at all.
 
-| Covered | R1, T2, T3, T4, H1, H2, H3, M2, V1, V2, V3, S1, S2, S3, S6, E1, E2, E3, E4, E5 |
+| Covered | R1, T1, T2, T3, T4, H1, H2, H3, M2, V1, V2, V3, V4, S1, S2, S3, S5, S6, S7, E1, E2, E3, E4, E5 |
 |---|---|
-| **Not yet** | T1, H4, K1, K2, M1, S4, S5, S7, V4 |
+| **Not yet** | K1, K2, M1, S4 |
 
 Cases come in two kinds. A **plugin case** is a request and the response a
 conforming plugin must give. A **host case** is a plugin's answer — or its
@@ -345,12 +333,13 @@ refusal to give one — and the behaviour the host must have in return; it is
 driven by a plugin that follows a script, because a real plugin will not crash
 or hang on request.
 
-What is still uncovered is uncovered for one of two reasons. `T1`, `M1` and
-`S4` describe how a thing is done rather than what comes out, and no case can
-observe the difference from outside. `K1` and `K2` are about storage, which a
-host case cannot see unless the host offers somewhere to look — the reference
-host is checked by its own tests, which is evidence for it and for nothing
-else. `H4`, `S5`, `S7` and `V4` are reachable and simply not written yet.
+The four that are not are not for one of two reasons. `M1` and `S4` describe
+how a thing is done rather than what comes out: `S4` is a requirement on a
+host's internal shape, and `M1`'s failure — content that is not
+representable — cannot be written into a case file, because a case file is
+JSON. Both are covered by the reference host's own tests, which is evidence
+for it and for nothing else. `K1` and `K2` are about storage, which a host
+case cannot see unless the host offers somewhere to look.
 
 *Rationale for stating it: an implementer needs to know which clauses have been
 tested and which are still assertions. Before this version is tagged, a clause

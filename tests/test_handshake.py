@@ -52,10 +52,6 @@ def test_a_declaration_missing_a_required_field_is_rejected(missing: str) -> Non
         {**VALID, "hooks": [1, 2]},  # not strings
         {**VALID, "version": 1.0},  # not a string
         {**VALID, "deterministic": "yes"},  # not a bool
-        {**VALID, "max_inline_bytes": 0},
-        {**VALID, "max_inline_bytes": -1},
-        {**VALID, "max_inline_bytes": "1MiB"},
-        {**VALID, "max_inline_bytes": True},  # a bool is not a size
     ],
 )
 def test_wrong_types_are_rejected(payload: dict) -> None:
@@ -72,14 +68,6 @@ def test_unknown_fields_are_ignored() -> None:
 def test_undeclared_determinism_means_uncacheable() -> None:
     """Guessing wrong caches a plugin whose answer depends on when you asked."""
     assert _declaration(VALID).deterministic is False
-
-
-def test_a_plugin_cannot_raise_the_hosts_inline_limit() -> None:
-    greedy = _declaration({**VALID, "max_inline_bytes": 8 << 20})
-    assert greedy.inline_limit(1 << 20) == 1 << 20  # host wins
-    modest = _declaration({**VALID, "max_inline_bytes": 4096})
-    assert modest.inline_limit(1 << 20) == 4096  # plugin may lower it
-    assert _declaration(VALID).inline_limit(1 << 20) == 1 << 20  # silence means the host's
 
 
 def test_a_plugin_that_answers_with_a_verdict_is_malformed() -> None:

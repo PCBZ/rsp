@@ -1,0 +1,46 @@
+{
+  "name": "spans-every-plugin-sees-the-original",
+  "clause": "S5",
+  "kind": "host",
+  "note": "Two plugins over the same chunk. The first redacts the word the second is looking for; the second must still find it, because redaction happens once after the last plugin has answered. A host that redacted as it went would hide findings from every plugin but the first.",
+  "plugins": [
+    {
+      "reply": {
+        "verdict": "REDACT",
+        "spans": [
+          {
+            "start": 0,
+            "end": 6,
+            "type": "a"
+          }
+        ],
+        "replacement": "[A]",
+        "severity": "low"
+      }
+    },
+    {
+      "reply": {
+        "verdict": "REDACT",
+        "spans": [
+          {
+            "start": 0,
+            "end": 6,
+            "type": "b"
+          }
+        ],
+        "replacement": "[B]",
+        "severity": "critical"
+      }
+    }
+  ],
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "secret the rest"
+  },
+  "expect": {
+    "verdict": "REDACT",
+    "content": "[B] the rest",
+    "every_plugin_saw_the_original": true
+  }
+}
