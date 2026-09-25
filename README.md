@@ -64,7 +64,7 @@ and the host cases.
 | `conformance/` | cases, a runner, and a plugin that misbehaves on request |
 | `rsp/` | the reference host — five layers, one-way imports, zero dependencies |
 | `plugins/rsp-echo` | the reference plugin, whose verdicts are chosen by markers |
-| `examples/gitleaks-{ts,go}` | the same real scanner wrapped twice, in two languages |
+| `examples/gitleaks-{ts,go,rs}` | the same real scanner wrapped three times, in three languages |
 | `demo/` | eight documents, two of them with fabricated credentials |
 
 Decisions (D1–D9) and open questions live in the

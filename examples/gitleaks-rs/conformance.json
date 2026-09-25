@@ -1,0 +1,3 @@
+{ "name": "rsp-gitleaks-rs", "role": "gitleaks",
+  "source": ["cargo", "run", "--quiet", "--manifest-path", "{dir}/Cargo.toml"],
+  "toolchain": ["cargo"], "wraps": ["gitleaks"] }
