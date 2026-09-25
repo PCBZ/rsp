@@ -11,12 +11,14 @@ import json
 import pathlib
 import re
 
+import jsonschema
 import pytest
 
 from rsp.spans import Span, valid_span
 
 ROOT = pathlib.Path(__file__).parent.parent
-TABLE = json.loads((ROOT / "examples" / "gitleaks-offsets.json").read_text(encoding="utf-8"))
+TABLE_PATH = ROOT / "examples" / "gitleaks-offsets.json"
+TABLE = json.loads(TABLE_PATH.read_text(encoding="utf-8"))
 CASES = TABLE["tests"]
 
 # Where each adapter reads it. A suite that quietly stopped would still pass
@@ -69,3 +71,19 @@ def test_each_adapter_still_reads_the_table(reader: str) -> None:
     empty table."""
     text = (ROOT / reader).read_text(encoding="utf-8")
     assert re.search(r"gitleaks-offsets\.json[\"']", text), "the path stopped pointing at the table"
+
+
+def test_the_table_matches_the_schema_it_declares() -> None:
+    """The table names its own schema, the way Wycheproof's vectors do, and a
+    named schema nobody runs is a shape that drifts from the file it describes.
+
+    Structure only. That a span is in range, on a boundary, and slices to its
+    Match cannot be said in JSON Schema at all — those are the checks above,
+    and they are the ones that catch a bad transcription.
+    """
+    schema_path = TABLE_PATH.parent / TABLE["schema"]
+    assert schema_path.is_file(), f"the table names {TABLE['schema']}, which is not there"
+
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.Draft202012Validator(schema).validate(TABLE)

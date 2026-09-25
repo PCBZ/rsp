@@ -1,5 +1,6 @@
 {
   "tool": "gitleaks 8.30.1",
+  "schema": "gitleaks-offsets.schema.json",
   "about": "Line-and-column positions as gitleaks reports them, and the byte offsets SPEC.md S1 requires, for every adapter under examples/. Transcribed from what the binary emitted; a number invented here would agree with whatever the code assumes, which is how an end offset was once wrong for every finding spanning two lines. Findings go in, spans come out — a case expecting none says so with an empty list.",
   "notes": {
     "ColumnsFromNewline": "gitleaks counts a line's columns from the newline byte that ended the previous line, not from the line's first byte. Only line one matches the 1-based column anyone assumes; everywhere else the column is one lower.",
