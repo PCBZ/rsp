@@ -18,8 +18,7 @@ def script(body: str) -> list[str]:
 
 
 def test_encode_keeps_content_as_utf8() -> None:
-    """Escaped content would break span arithmetic: a plugin reports byte
-    offsets into what it received (S1), and u-escapes are different bytes."""
+    """A plugin's offsets index the bytes it received (S1), and u-escapes are other bytes."""
     content = "密钥 secret"
     raw = encode({"hook": "on_chunk", "content": content})
     assert content.encode("utf-8") in raw
@@ -57,9 +56,7 @@ def test_decode_accepts_exactly_one_object(raw: bytes, expected: Outcome) -> Non
 
 
 def test_diagnostics_on_stdout_are_rejected() -> None:
-    """T2 from the host's side. A debug line before the response is not a
-    parsing inconvenience — it means the plugin treats stdout as a log, and the
-    host cannot tell a stray line from a response it should act on."""
+    """T2 from the host's side: it cannot tell a stray line from a response."""
     chatty = script(
         "import sys; sys.stdin.read(); print('loading rules...'); print('{\"verdict\":\"ALLOW\"}')"
     )
@@ -74,8 +71,7 @@ def test_silent_plugin_is_empty_not_ok() -> None:
 
 
 def test_output_from_a_failed_process_is_not_parsed() -> None:
-    """A verdict printed on the way down is a fragment, however well-formed:
-    the plugin did not finish deciding."""
+    """A verdict printed on the way down is from a plugin that did not finish deciding."""
     dying = script('import sys; sys.stdin.read(); print(\'{"verdict":"ALLOW"}\'); sys.exit(3)')
     reply = call(dying, {"hook": "on_chunk", "content": "x"})
     assert reply.outcome is Outcome.CRASHED
@@ -100,9 +96,7 @@ def test_round_trip_matches_the_conformance_case() -> None:
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_non_finite_values_never_reach_the_wire(value: float) -> None:
-    """NaN and Infinity are not JSON (RFC 8259); Python writes them anyway.
-    A retriever score of NaN would otherwise go out as something a strict
-    plugin rejects, making a working plugin look broken."""
+    """Python writes NaN and Infinity, which are not JSON (RFC 8259); a strict plugin refuses."""
     reply = call(ECHO, {"hook": "on_retrieve", "content": "x", "metadata": {"score": value}})
     assert reply.outcome is Outcome.UNENCODABLE
     assert reply.payload is None
@@ -111,8 +105,7 @@ def test_non_finite_values_never_reach_the_wire(value: float) -> None:
 
 @pytest.mark.parametrize("raw", [b'{"n":NaN}', b'{"n":Infinity}', b'{"n":-Infinity}'])
 def test_non_finite_values_are_rejected_on_the_way_in(raw: bytes) -> None:
-    """Accepting these would make this host take responses that a Go or Rust
-    host rejects — the divergence surfaces later as "works here, fails there"."""
+    """Accepting these would take responses that a Go or Rust host rejects."""
     outcome, payload = decode(raw)
     assert outcome is Outcome.MALFORMED
     assert payload is None
@@ -124,22 +117,16 @@ def test_finite_floats_still_work() -> None:
 
 
 def test_a_string_that_cannot_be_utf8_is_unencodable() -> None:
-    """A lone surrogate is a valid str and valid JSON. UnicodeEncodeError is a
-    ValueError, so call() already catches it — this pins that, because the
-    correctness is inherited rather than written down."""
+    """Inherited, not written: call() catches this because UnicodeEncodeError is a ValueError."""
     reply = call([sys.executable, "-c", "pass"], {"hook": "on_chunk", "content": "\ud800"})
     assert reply.outcome is Outcome.UNENCODABLE
     assert reply.invocation is None  # nothing was spawned
 
 
 def test_a_key_that_repeats_once_written_is_refused() -> None:
-    """`{1: "a", "1": "b"}` is two keys in Python and one key twice on the
-    wire, because json.dumps writes an integer key as a string without saying
-    so — a host would send a message T4 requires it to reject.
+    """json.dumps writes an integer key as a string: one key twice on the wire (T4).
 
-    Not a conformance case: a case file is JSON, which has no integer keys, so
-    the collision cannot survive being written down. It exists only inside a
-    host's own data structures.
+    Not a conformance case: JSON has no integer keys, so a case file cannot hold it.
     """
     with pytest.raises(ValueError, match="repeated"):
         encode({"hook": "on_chunk", "metadata": {1: "a", "1": "b"}})
@@ -156,10 +143,7 @@ def test_ordinary_requests_still_encode() -> None:
 
 
 def test_a_request_that_contains_itself_is_refused() -> None:
-    """Not a conformance case either: JSON has no cycles, so this exists only
-    in a host's own data structures. It matters because the refusal has to be
-    a ValueError — a RecursionError is not what the caller turns into a
-    verdict, and evaluate would raise, which E2 forbids."""
+    """A ValueError, which evaluate turns into a verdict; a RecursionError escapes it (E2)."""
     cycle: dict[str, object] = {}
     cycle["self"] = cycle
 
@@ -168,7 +152,6 @@ def test_a_request_that_contains_itself_is_refused() -> None:
 
 
 def test_the_same_object_twice_is_not_a_cycle() -> None:
-    """Shared structure is ordinary; only an ancestor of itself is a cycle."""
     shared = {"x": 1}
 
     assert encode({"hook": "on_chunk", "metadata": {"a": shared, "b": shared}})

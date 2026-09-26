@@ -48,10 +48,10 @@ def test_a_declaration_missing_a_required_field_is_rejected(missing: str) -> Non
 @pytest.mark.parametrize(
     "payload",
     [
-        {**VALID, "hooks": "on_chunk"},  # a string, not a list
-        {**VALID, "hooks": [1, 2]},  # not strings
-        {**VALID, "version": 1.0},  # not a string
-        {**VALID, "deterministic": "yes"},  # not a bool
+        {**VALID, "hooks": "on_chunk"},
+        {**VALID, "hooks": [1, 2]},
+        {**VALID, "version": 1.0},
+        {**VALID, "deterministic": "yes"},
     ],
 )
 def test_wrong_types_are_rejected(payload: dict) -> None:

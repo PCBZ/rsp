@@ -1,8 +1,4 @@
-"""The demo corpus, through the real pipeline, with a real scanner.
-
-The numbers in the README come from here, so that a claim about the demo
-cannot drift from what the demo does.
-"""
+"""The demo, through the real pipeline and a real scanner; the README's numbers come from here."""
 
 from __future__ import annotations
 
@@ -64,9 +60,7 @@ def test_no_planted_secret_survives_into_the_index(gitleaks: None) -> None:
 
 
 def test_the_corpus_is_mostly_clean(gitleaks: None) -> None:
-    """Precision: a corpus where everything is flagged proves nothing about a
-    scanner, and the FAQ discusses redaction at length without containing a
-    credential."""
+    """Precision: a corpus where everything is flagged proves nothing about a scanner."""
     report = ingest(DOCS, load(CONFIG))
 
     assert report.scanned > 2 * len(PLANTED), "most chunks must be ordinary prose"
@@ -75,9 +69,7 @@ def test_the_corpus_is_mostly_clean(gitleaks: None) -> None:
 def test_a_missing_scanner_stops_the_run_before_it_starts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Fail closed, at the earliest moment it can be done: the plugin cannot
-    introduce itself, so the host refuses to exist rather than indexing a
-    corpus nobody scanned (E2)."""
+    """Fail closed, as early as possible, rather than index a corpus nobody scanned (E2)."""
     monkeypatch.setenv("RSP_GITLEAKS", "/nonexistent/gitleaks")
     if shutil.which("node") is None:
         pytest.skip("the wrapper needs node")
@@ -112,10 +104,7 @@ def test_the_command_explains_a_missing_extra(
 ) -> None:
     """The only sentence a user sees when they installed rsp without it.
 
-    llama_index is refused rather than `rsp.ingest`, because that is where it
-    is missing: `rsp.ingest` imports the framework inside its functions, so
-    importing the module succeeds and the call is what fails. A test that
-    breaks the module import passes while the message never fires.
+    Refuses llama_index, not `rsp.ingest`, which imports it inside its functions.
     """
     real = builtins.__import__
 
@@ -136,9 +125,7 @@ def test_a_directory_with_nothing_to_read_says_so(tmp_path: pathlib.Path) -> Non
 
 
 def test_a_blocked_chunk_is_named_in_the_report(tmp_path: pathlib.Path) -> None:
-    """What the demo's own scanner never produces: a chunk refused outright.
-    The report has to name it, or the index is quietly smaller than its source.
-    """
+    """A report that omits it leaves the index quietly smaller than its source."""
     corpus = tmp_path / "docs"
     corpus.mkdir()
     (corpus / "notes.md").write_text("Ordinary prose.\n")
@@ -166,9 +153,7 @@ def test_a_node_without_a_source_still_reports_a_range() -> None:
 
 
 def test_the_range_covers_the_chunk_as_it_was_read(gitleaks: None) -> None:
-    """Not as it was left: redaction rewrites the text, so counting newlines
-    in a redacted node reports a range that stops before the secret does. The
-    key in the runbook ends on line 15."""
+    """Not as redacted, which stops short of the key; the runbook's key ends on line 15."""
     [finding] = [one for one in ingest(DOCS, load(CONFIG)).redacted if "backups" in one.source]
 
     first, last = (int(part) for part in finding.lines.split("-"))
@@ -179,14 +164,12 @@ def test_the_range_covers_the_chunk_as_it_was_read(gitleaks: None) -> None:
 def test_a_missing_scanner_fails_before_the_corpus_is_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The runtime is constructed first, so a plugin that cannot introduce
-    itself costs nothing else — and the failure is the handshake's, not a
-    splitter's."""
+    """A dead plugin costs nothing else, and the failure is the handshake's, not a splitter's."""
     monkeypatch.setenv("RSP_GITLEAKS", "/nonexistent/gitleaks")
     if shutil.which("node") is None:
         pytest.skip("the wrapper needs node")
     seen: list[pathlib.Path] = []
-    monkeypatch.setattr("rsp.ingest.documents", lambda directory: seen.append(directory))
+    monkeypatch.setattr("rsp.ingest.documents", seen.append)
 
     with pytest.raises(ConfigError, match="handshake"):
         ingest(DOCS, load(CONFIG))

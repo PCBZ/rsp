@@ -1,13 +1,9 @@
-"""Which plugins exist, found rather than listed.
+"""Which plugins exist, found from each one's `conformance.json` rather than listed.
 
-Each one ships a `conformance.json` saying what runs it, so adding an adapter
-in a new language is a new directory and no change here. That file is a
-convention of this kit, not part of the protocol: a plugin cannot declare how
-to start it, because you have to start it to hear the declaration.
-
-A case names a role, not an implementation: `gitleaks` is any adapter over that
-binary, so one case holds for all of them. Nothing here imports `rsp` — the
-conformance harness has to run with the runtime source absent.
+That file is this kit's convention, not the protocol's: a plugin cannot declare
+how to start itself. A case names a role (`gitleaks` is any adapter over that
+binary), so one case holds for all of them. No `rsp` import: the harness runs
+with the runtime source absent.
 """
 
 from __future__ import annotations
@@ -20,16 +16,17 @@ import sys
 from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).parent.parent
+MANIFEST = "conformance.json"
+# Set in CI, where a skipped plugin proves nothing; locally a missing toolchain skips.
+REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
 
 
 @dataclass(frozen=True)
 class Implementation:
     """A plugin: how to run it from source, and what that needs installed.
 
-    Any entry can be pointed at something already built, with
-    `RSP_PLUGIN_<NAME>`. Only Go needs it today — `go run` recompiles on every
-    invocation and the corpus suite makes four hundred — but the hatch belongs
-    to all of them rather than to the language that asked first.
+    `RSP_PLUGIN_<NAME>` points any entry at a prebuilt binary, for toolchains
+    that recompile on every call, as `go run` does.
     """
 
     name: str
@@ -49,8 +46,6 @@ class Implementation:
 
     @property
     def tools(self) -> tuple[str, ...]:
-        """A built binary needs the wrapped tool; running from source also
-        needs the toolchain that runs it."""
         return self.wraps if self.built else self.toolchain + self.wraps
 
     @property
@@ -63,19 +58,13 @@ class Implementation:
 
 
 def _resolve(tool: str) -> str | None:
-    """Where the plugin looks: a wrapper can be pointed at its tool by
-    `RSP_<TOOL>`, and checking only PATH calls it missing while the plugin
-    finds it."""
+    """Honour `RSP_<TOOL>` as the plugin does, or a tool it finds reads as missing."""
     override = os.environ.get(f"RSP_{tool.upper().replace('-', '_')}")
     return shutil.which(override or tool)
 
 
-MANIFEST = "conformance.json"
-
-
 def _load(path: pathlib.Path) -> Implementation:
-    """One manifest. `{dir}` is where it lives and `{python}` is this
-    interpreter, so a command works from any working directory."""
+    """Fill in `{dir}` and `{python}`, so a command runs from any directory."""
     declared = json.loads(path.read_text(encoding="utf-8"))
     fill = {"dir": str(path.parent), "python": sys.executable}
     return Implementation(
@@ -96,9 +85,3 @@ REGISTRY = tuple(
 
 def for_role(role: str) -> list[Implementation]:
     return [implementation for implementation in REGISTRY if implementation.role == role]
-
-
-# Toolchains belong to CI, not to a contributor's machine. Locally a missing one
-# skips its cases; here it fails, because a silently skipped plugin proves
-# nothing.
-REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"

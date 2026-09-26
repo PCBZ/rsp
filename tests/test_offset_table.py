@@ -1,9 +1,4 @@
-"""The offset table the three adapters share.
-
-A number in it is a transcription of what gitleaks emitted, and nothing else
-checks transcriptions: each adapter asserts its own arithmetic agrees with the
-table, so a table that is wrong is a suite that agrees about the wrong answer.
-"""
+"""The offset table the three adapters share; nothing else checks its transcriptions."""
 
 from __future__ import annotations
 
@@ -21,8 +16,7 @@ TABLE_PATH = ROOT / "examples" / "gitleaks-offsets.json"
 TABLE = json.loads(TABLE_PATH.read_text(encoding="utf-8"))
 CASES = TABLE["tests"]
 
-# Where each adapter reads it. A suite that quietly stopped would still pass
-# its own tests, which is the failure this file exists to prevent.
+# A suite that quietly stopped reading the table would still pass its own tests.
 READERS = (
     "examples/gitleaks-ts/test/gitleaks.test.ts",
     "examples/gitleaks-go/gitleaks_test.go",
@@ -32,9 +26,7 @@ READERS = (
 
 @pytest.mark.parametrize("case", CASES, ids=[c["comment"] for c in CASES])
 def test_every_span_is_one_the_host_would_apply(case: dict) -> None:
-    """The adapters check this too, which is the point: if the table asked for
-    a span S3 refuses, three suites would agree the adapter should produce it.
-    """
+    """Otherwise three suites would agree an adapter should produce a span S3 refuses."""
     content = case["content"].encode("utf-8")
     for span in case["spans"]:
         assert valid_span(Span(span["start"], span["end"]), content), span
@@ -50,8 +42,7 @@ def test_every_span_slices_to_a_match_of_its_case(case: dict) -> None:
 
 
 def test_every_flag_has_a_note_and_every_note_is_used() -> None:
-    """The notes carry the reasons the three suites used to carry in comments.
-    One nobody cites is a reason that left with the case it explained."""
+    """A note nobody cites is a reason that left with the case it explained."""
     flagged = {flag for case in CASES for flag in case["flags"]}
     assert flagged - set(TABLE["notes"]) == set(), "a case cites a note that is not there"
     assert set(TABLE["notes"]) - flagged == set(), "a note explains nothing"
@@ -64,22 +55,18 @@ def test_case_ids_are_unique() -> None:
 
 @pytest.mark.parametrize("reader", READERS)
 def test_each_adapter_still_reads_the_table(reader: str) -> None:
-    """Up to the closing quote, because a substring is satisfied by a path
-    with anything appended — which is how this passed when the Rust reader was
-    pointed at `gitleaks-offsets.json.bak`. A wrong path that still resolves
-    nowhere is caught by that adapter's own suite, which refuses to run on an
-    empty table."""
+    """Up to the closing quote, so `gitleaks-offsets.json.bak` does not match.
+
+    A path that resolves nowhere fails that adapter's own suite, which refuses an empty table.
+    """
     text = (ROOT / reader).read_text(encoding="utf-8")
     assert re.search(r"gitleaks-offsets\.json[\"']", text), "the path stopped pointing at the table"
 
 
 def test_the_table_matches_the_schema_it_declares() -> None:
-    """The table names its own schema, the way Wycheproof's vectors do, and a
-    named schema nobody runs is a shape that drifts from the file it describes.
+    """A named schema nobody runs drifts from the file it describes.
 
-    Structure only. That a span is in range, on a boundary, and slices to its
-    Match cannot be said in JSON Schema at all — those are the checks above,
-    and they are the ones that catch a bad transcription.
+    Structure only: range, boundary and Match cannot be said in JSON Schema.
     """
     schema_path = TABLE_PATH.parent / TABLE["schema"]
     assert schema_path.is_file(), f"the table names {TABLE['schema']}, which is not there"

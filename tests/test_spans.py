@@ -1,9 +1,4 @@
-"""Span coalescing and redaction — S5, S6, S7.
-
-The table mirrors the shape a host conformance case will take: content
-and spans in, resulting content out. Lifting these into data should be
-mechanical once the kit can drive a host.
-"""
+"""Span coalescing and redaction — S5, S6, S7."""
 
 from __future__ import annotations
 
@@ -30,8 +25,16 @@ def span(
     ("name", "spans", "expected"),
     [
         ("disjoint", [span(0, 2, rep="[A]"), span(5, 7, rep="[B]")], "[A]234[B]789"),
-        ("exact overlap", [span(0, 3, rep="[A]"), span(0, 3, sev="high", rep="[B]")], "[B]3456789"),
-        ("partial overlap", [span(0, 4, rep="[A]"), span(2, 6, sev="high", rep="[B]")], "[B]6789"),
+        (
+            "exact overlap",
+            [span(0, 3, rep="[A]"), span(0, 3, sev="high", rep="[B]")],
+            "[B]3456789",
+        ),
+        (
+            "partial overlap",
+            [span(0, 4, rep="[A]"), span(2, 6, sev="high", rep="[B]")],
+            "[B]6789",
+        ),
         ("adjacent", [span(0, 3, rep="[A]"), span(3, 6, rep="[B]")], "[A]6789"),
         ("contained", [span(0, 6, rep="[A]"), span(2, 4, sev="critical", rep="[B]")], "[B]6789"),
         (
@@ -55,11 +58,7 @@ def test_a_coalesced_span_records_every_contributing_type() -> None:
 
 
 def test_a_later_merge_can_take_the_replacement_back() -> None:
-    """Three spans, two merges. The first merge hands the replacement to the
-    high-severity span from plugin 2; the second brings in an equally severe
-    span from plugin 1, which S6 says wins the tie. The merged span must
-    therefore carry the current winner's order, not the earliest contributor's,
-    or plugin 2 keeps a replacement that plugin 1 should have taken."""
+    """S6: a merged span carries its current winner's order, not its earliest contributor's."""
     a = span(0, 4, sev="low", rep="[A]", order=0)
     b = span(2, 7, sev="high", rep="[B]", order=2)
     c = span(6, 9, sev="high", rep="[C]", order=1)
@@ -69,7 +68,6 @@ def test_a_later_merge_can_take_the_replacement_back() -> None:
 
 
 def test_order_of_arrival_does_not_change_the_result() -> None:
-    """Composition must not depend on which plugin happened to answer first."""
     a, b = span(0, 4, rep="[A]"), span(2, 6, sev="high", rep="[B]")
     assert redact(TEXT, [a, b]) == redact(TEXT, [b, a])
 
@@ -83,8 +81,7 @@ def test_order_of_arrival_does_not_change_the_result() -> None:
 
 
 def test_every_plugin_addresses_the_original_content() -> None:
-    """Q2: offsets from two plugins are both computed against the same bytes,
-    so a replacement of a different length cannot shift the other's range."""
+    """S5."""
     content, _ = redact(TEXT, [span(0, 2, rep="[a very long replacement]"), span(8, 10, rep="[B]")])
     assert content == "[a very long replacement]234567[B]"
 
@@ -106,9 +103,7 @@ def test_utf8_offsets_are_bytes_not_characters() -> None:
     ],
 )
 def test_invalid_spans_are_rejected_not_applied(bad: Span, why: str) -> None:
-    """S3: a span is a claim from untrusted code until it is checked. Applying
-    one that cuts a character raises on decode — a plugin choosing when the
-    host falls over."""
+    """S3: applying a span that cuts a character raises on decode."""
     text = "密钥 secret"
     content, rejected = redact(text, [bad])
     assert content == text, why
