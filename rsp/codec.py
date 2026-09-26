@@ -97,10 +97,12 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
     except UnicodeDecodeError:
         return Outcome.MALFORMED, None
 
-    if not text.strip():
+    # Stripped with JSON's four, not Python's: a plugin whose whole output is
+    # some other space character said something, and EMPTY means it did not.
+    body = text.lstrip(_WHITESPACE)
+    if not body:
         return Outcome.EMPTY, None
 
-    body = text.lstrip(_WHITESPACE)
     try:
         payload, end = _DECODER.raw_decode(body)
     except ValueError:  # JSONDecodeError, or a value the hooks above refuse

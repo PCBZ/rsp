@@ -155,3 +155,11 @@ def test_the_same_object_twice_is_not_a_cycle() -> None:
     shared = {"x": 1}
 
     assert encode({"hook": "on_chunk", "metadata": {"a": shared, "b": shared}})
+
+
+def test_output_that_is_only_non_json_whitespace_is_malformed() -> None:
+    """EMPTY means the plugin said nothing, and a space JSON does not allow is something."""
+    outcome, payload = decode("\u00a0".encode())
+
+    assert outcome is Outcome.MALFORMED
+    assert payload is None

@@ -9,8 +9,6 @@ from typing import Any
 from rsp.codec import RSP_VERSION, call
 from rsp.process import DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, Outcome
 
-_REQUIRED_FIELDS = ("rsp_version", "name", "version", "hooks")
-
 
 @dataclass(frozen=True)
 class Handshake:
@@ -32,13 +30,11 @@ class Handshake:
 
 def _declaration(payload: Mapping[str, Any]) -> Handshake | None:
     """Validate a declaration. Unknown fields are ignored, never an error (D8)."""
-    if any(field not in payload for field in _REQUIRED_FIELDS):
-        return None
-
-    hooks = payload["hooks"]
+    # Absent and wrongly typed are one property, so `get` settles both.
+    hooks = payload.get("hooks")
     if not isinstance(hooks, list) or not all(isinstance(hook, str) for hook in hooks):
         return None
-    if not all(isinstance(payload[f], str) for f in ("rsp_version", "name", "version")):
+    if not all(isinstance(payload.get(f), str) for f in ("rsp_version", "name", "version")):
         return None
 
     # Absent means false: a wrong guess caches an answer that depends on when it was asked.

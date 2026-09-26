@@ -81,3 +81,17 @@ def test_process_failures_surface_unchanged() -> None:
     outcome, declaration = handshake([sys.executable, "-c", "import sys; sys.exit(2)"])
     assert outcome is Outcome.CRASHED
     assert declaration is None
+
+
+def test_a_declaration_missing_a_field_is_refused_without_raising() -> None:
+    """A lookup that assumes presence turns a malformed declaration into a crash."""
+    for missing in ("rsp_version", "name", "version", "hooks"):
+        declaration = {
+            "rsp_version": "0.1",
+            "name": "p",
+            "version": "1",
+            "hooks": ["on_chunk"],
+        }
+        del declaration[missing]
+
+        assert _declaration(declaration) is None, missing

@@ -7,6 +7,8 @@ API key: what it shows is which chunks were kept, redacted, or refused.
 from __future__ import annotations
 
 import pathlib
+from bisect import bisect_left
+from functools import cache
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from rsp.runtime import Plugin, Runtime
@@ -56,6 +58,18 @@ def documents(directory: pathlib.Path) -> list[Any]:
     ]
 
 
+@cache
+def _newlines(source: str) -> tuple[int, ...]:
+    """Where the line breaks are in a file on disk.
+
+    Offsets and not the text: a cache of contents would hold every scanned
+    secret for as long as the process lives.
+    """
+    return tuple(
+        at for at, char in enumerate(pathlib.Path(source).read_text("utf-8")) if char == "\n"
+    )
+
+
 def _lines_of(node: BaseNode) -> str:
     """The chunk's line range, since the host never sees a span (S4).
 
@@ -68,10 +82,8 @@ def _lines_of(node: BaseNode) -> str:
     if source is None or start is None or end is None:
         return "?"
     # From the offsets, not the content: a redacted node's text has been rewritten.
-    document = pathlib.Path(source).read_text(encoding="utf-8")
-    first = document[:start].count("\n") + 1
-    last = first + document[start:end].count("\n")
-    return f"{first}-{last}"
+    newlines = _newlines(source)
+    return f"{bisect_left(newlines, start) + 1}-{bisect_left(newlines, end) + 1}"
 
 
 def _finding(verdict: str, provenance: dict[str, Any], node: BaseNode) -> Finding:

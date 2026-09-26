@@ -175,3 +175,29 @@ def test_a_missing_scanner_fails_before_the_corpus_is_read(
         ingest(DOCS, load(CONFIG))
 
     assert not seen, "the corpus was read before the plugin was checked"
+
+
+def test_the_line_range_reads_each_source_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Caching offsets rather than text keeps no scanned secret alive in memory."""
+    from llama_index.core.schema import TextNode
+
+    from rsp import ingest as module
+
+    source = DOCS / min(p.name for p in DOCS.iterdir() if p.is_file())
+    module._newlines.cache_clear()
+    reads = 0
+    original = pathlib.Path.read_text
+
+    def counted(self: pathlib.Path, *args: object, **kwargs: object) -> str:
+        nonlocal reads
+        if self == source:
+            reads += 1
+        return original(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pathlib.Path, "read_text", counted)
+    for start in (0, 10, 20):
+        node = TextNode(text="x", metadata={"file_path": str(source)})
+        node.start_char_idx, node.end_char_idx = start, start + 5
+        module._lines_of(node)
+
+    assert reads == 1, f"read the source {reads} times for three findings"
