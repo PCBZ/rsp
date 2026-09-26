@@ -13,8 +13,6 @@ from typing import Any
 from rsp.codec import RSP_VERSION, call
 from rsp.process import DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, Outcome
 
-REQUIRED_DECLARATION_FIELDS = ("rsp_version", "name", "version", "hooks")
-
 
 @dataclass(frozen=True)
 class Handshake:
@@ -35,13 +33,13 @@ class Handshake:
 
 def _declaration(payload: Mapping[str, Any]) -> Handshake | None:
     """Validate a declaration. Unknown fields are ignored, never an error (D8)."""
-    if any(field not in payload for field in REQUIRED_DECLARATION_FIELDS):
-        return None
-
-    hooks = payload["hooks"]
+    # Absent and wrongly typed are one property: `get` leaves a missing field
+    # failing the same check that a numeric one does, and H2's four fields stay
+    # readable in the two lines that require them.
+    hooks = payload.get("hooks")
     if not isinstance(hooks, list) or not all(isinstance(hook, str) for hook in hooks):
         return None
-    if not all(isinstance(payload[f], str) for f in ("rsp_version", "name", "version")):
+    if not all(isinstance(payload.get(f), str) for f in ("rsp_version", "name", "version")):
         return None
 
     # Defaulting rather than guessing: a plugin that did not say it is

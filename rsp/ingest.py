@@ -8,6 +8,8 @@ kept, redacted, or refused, not retrieval quality.
 from __future__ import annotations
 
 import pathlib
+from bisect import bisect_left
+from functools import cache
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from rsp.runtime import Plugin, Runtime
@@ -119,6 +121,17 @@ def _lines_of(node: BaseNode) -> str:
     # From the offsets, not from the content: a redacted node has had its text
     # rewritten, and a four-line key replaced by one marker would report a
     # range that stops before the key ends.
+    newlines = _newlines(source)
+    return f"{bisect_left(newlines, start) + 1}-{bisect_left(newlines, end) + 1}"
+
+
+@cache
+def _newlines(source: str) -> tuple[int, ...]:
+    """Where the line breaks are in a file on disk.
+
+    Cached because a file with ten findings was opened ten times. Offsets and
+    not the text: a cache of file contents would hold every scanned secret in
+    memory for as long as the process lives.
+    """
     document = pathlib.Path(source).read_text(encoding="utf-8")
-    first = document[:start].count("\n") + 1
-    return f"{first}-{first + document[start:end].count(chr(10))}"
+    return tuple(at for at, char in enumerate(document) if char == "\n")
