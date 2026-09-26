@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """A plugin that does what a host case tells it to, including badly.
 
-Host cases need a plugin whose behaviour is an input rather than a fixture: a
-crash for E1, a hang for E4, a span outside the content for S3. Real plugins
-are not obliging enough to fail on request, so this one reads its script from
-the file named by `RSP_REPLAY` and follows it.
-
-Stdlib only, like the reference plugin, and no detection of any kind — what it
-answers is whatever the case wrote down.
+Host cases need misbehaviour on request — a crash for E1, a hang for E4, a bad
+span for S3 — so this reads a script from the file named by its argument or by
+`RSP_REPLAY`, and answers what the case wrote down. Stdlib only, no detection.
 """
 
 import json
@@ -20,15 +16,11 @@ DECLARATION = {
     "rsp_version": "0.1",
     "name": "rsp-replay",
     "version": "0.1.0",
-    # Not on_response: the spec reserves it, and a plugin declaring a hook no
-    # host implements would be modelling something nobody can do.
-    "hooks": ["on_chunk", "on_retrieve"],
+    "hooks": ["on_chunk", "on_retrieve"],  # not on_response, which §4 reserves
     "deterministic": True,
 }
 
-# Long enough to outlast any bound a case configures, short enough that a
-# leaked process is a nuisance rather than an hour of one.
-FOREVER = 30
+FOREVER = 30  # outlasts any bound a case sets, without leaking a process for long
 
 
 def script() -> dict:
@@ -45,13 +37,8 @@ def main() -> None:
     plan = script()
     request = json.loads(sys.stdin.read() or "{}")
 
-    # A hook this plugin should never have been asked about leaves no other
-    # trace: the case asserting a verdict cannot tell "not called" from
-    # "called and ignored".
+    # The hook and content as received: a scripted answer cannot show what it was asked (H3, S5).
     if witness := os.environ.get("RSP_REPLAY_CALLS"):
-        # The hook, and the content as received. A scripted plugin does not
-        # read its input, so a case about what a plugin was shown — S5 — can
-        # only be answered by writing it down.
         with pathlib.Path(witness).open("a", encoding="utf-8") as log:
             log.write(
                 json.dumps({"hook": request.get("hook"), "content": request.get("content")}) + "\n"
@@ -75,24 +62,19 @@ def main() -> None:
         case "silent":
             pass
         case "flood":
-            # More stdout than any host would keep, to find out whether the
-            # limit is the host's or the one the declaration asked for (H4).
+            # More stdout than a host keeps (E1).
             sys.stdout.write("x" * 100_000 + "\n")
         case "raw":
-            # Verbatim, so a case can send what json.dumps would not: a
-            # repeated key, an integer no parser agrees on, a lone surrogate.
+            # Verbatim, so a case can send what json.dumps would not.
             sys.stdout.write(plan["raw"] + "\n")
         case "noisy":
-            # A valid answer and a flood of diagnostics. Only the answer is
-            # the protocol's (E3).
+            # A valid answer under a flood of diagnostics, which are not the protocol's (E3).
             print("x" * 100_000, file=sys.stderr)
             print(json.dumps(plan["reply"]))
         case None:
             print(json.dumps(plan["reply"]))
         case unknown:
-            # Falling through to `reply` would exit non-zero on a missing key,
-            # which a host reads as a crash — so a typo in a case file would
-            # pass every case about crashing.
+            # Named, so a typo is not mistaken for the crash a case asked for.
             raise SystemExit(f"rsp-replay: no such behaviour: {unknown!r}")
 
 

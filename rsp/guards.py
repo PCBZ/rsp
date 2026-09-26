@@ -1,17 +1,7 @@
 """LlamaIndex adapters: the host side of the protocol.
 
-Written against the real llama-index-core 0.14.24 API, and originally against
-an ``rsp.runtime`` that did not exist yet: the runtime's API is what this file
-needed it to be, and SPEC.md was reverse-engineered from that.
-
-Pass ``store_doc_text=False`` to ``IngestionPipeline.run`` when a docstore is
-configured: it writes documents down a path no transformation sees, and K1
-counts that as storing them.
-
-Verified signatures:
-    TransformComponent.__call__(nodes: Sequence[BaseNode], **kwargs) -> Sequence[BaseNode]
-    BaseNodePostprocessor._postprocess_nodes(nodes: List[NodeWithScore],
-                                             query_bundle: QueryBundle | None = None)
+Pass `store_doc_text=False` to `IngestionPipeline.run` when a docstore is
+configured: it writes documents down a path no transformation sees (K1).
 """
 
 from collections.abc import Callable, Sequence
@@ -25,28 +15,21 @@ from rsp.runtime import Result, Runtime, Verdict
 
 
 def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
-    """Record findings on the node without letting them reach an embedding or the LLM.
+    """Record findings on the node, out of reach of the embedding and the LLM (Q8).
 
-    LlamaIndex folds metadata into the text it vectorizes, so a naive
-    metadata.update() would embed "this chunk held an aws-access-key" — a
-    smaller version of the problem RSP exists to prevent. Provenance is for the
-    host to read, not for the index to carry (Q8).
+    LlamaIndex folds metadata into the text it embeds, so a plain update would
+    embed "this chunk held an aws-access-key".
     """
     node.metadata.update(provenance)
-    for key in provenance:
-        if key not in node.excluded_embed_metadata_keys:
-            node.excluded_embed_metadata_keys.append(key)
-        if key not in node.excluded_llm_metadata_keys:
-            node.excluded_llm_metadata_keys.append(key)
+    for excluded in (node.excluded_embed_metadata_keys, node.excluded_llm_metadata_keys):
+        excluded.extend(key for key in provenance if key not in excluded)
 
 
 class RSPIngestGuard(TransformComponent):
     """on_chunk. A blocked node is not returned, so it is never embedded.
 
-    `on_block` is how an operator learns what was dropped: a blocked node
-    leaves no trace in the pipeline's output by design, and an index that is
-    quietly smaller than its source is the failure this protocol is supposed to
-    prevent being unable to explain itself.
+    `on_block` is how an operator learns what was dropped: a blocked node leaves
+    no trace in the pipeline's output.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -66,8 +49,7 @@ class RSPIngestGuard(TransformComponent):
                     self.on_block(node, result)
                 continue
             if result.verdict is Verdict.REDACT:
-                # Span application is the runtime's job, not the host's: the host
-                # never sees a span and cannot get UTF-8 boundaries wrong (D6).
+                # span application is the runtime's job (D6)
                 node.set_content(result.content)
             tag(node, result.provenance)
             kept.append(node)
@@ -101,6 +83,4 @@ class RSPRetrieveGuard(BaseNodePostprocessor):
         return kept
 
 
-# on_response has no equivalent seam in LlamaIndex: response synthesis is not a
-# pluggable pipeline stage the way transformations and postprocessors are.
-# The clause is reserved rather than specified (SPEC.md section 4).
+# No on_response guard: LlamaIndex has no seam for it, and §4 reserves the hook.
