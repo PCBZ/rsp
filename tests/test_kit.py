@@ -13,7 +13,8 @@ import sys
 
 import pytest
 
-ROOT = pathlib.Path(__file__).parent.parent
+from plugins import ROOT
+
 MISBEHAVING = {
     "output that is not UTF-8": (
         "import sys\nsys.stdin.read()\nsys.stdout.buffer.write(b'\\xff\\xfe not text\\n')\n",

@@ -3,18 +3,12 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import sys
 
 import pytest
 
+from plugins import ECHO, ROOT, script
 from rsp.codec import Outcome, call, decode, encode
-
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
-
-
-def script(body: str) -> list[str]:
-    return [sys.executable, "-c", body]
 
 
 def test_encode_keeps_content_as_utf8() -> None:
@@ -87,7 +81,7 @@ def test_process_failures_reach_the_caller_unchanged() -> None:
 
 def test_round_trip_matches_the_conformance_case() -> None:
     case = json.loads(
-        pathlib.Path("conformance/cases/spans-are-utf8-bytes.json").read_text(encoding="utf-8")
+        (ROOT / "conformance/cases/spans-are-utf8-bytes.json").read_text(encoding="utf-8")
     )
     reply = call(ECHO, case["request"])
     assert reply.ok

@@ -13,9 +13,8 @@ from collections.abc import Callable
 import pytest
 from harness import check
 
-from plugins import REQUIRED, Implementation, for_role
+from plugins import REQUIRED, ROOT, Implementation, for_role
 
-ROOT = pathlib.Path(__file__).parent.parent
 CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
 

@@ -7,9 +7,8 @@ import sys
 
 import pytest
 
+from plugins import ECHO
 from rsp.handshake import Handshake, Outcome, _declaration, handshake
-
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
 VALID = {
     "rsp_version": "0.1",

@@ -6,15 +6,14 @@ Each rejection is a way to switch a guard off while the file still reads as if i
 from __future__ import annotations
 
 import pathlib
-import sys
 
 import pytest
 
+from plugins import ECHO
 from rsp.cli import main
 from rsp.config import load, plugins_from
 from rsp.runtime import ConfigError, OnError, Runtime
 
-ECHO = [sys.executable, str(pathlib.Path(__file__).parent.parent / "plugins/rsp-echo/main.py")]
 REJECTED = {
     "a misspelled field": ({"name": "x", "command": ["true"], "on_eror": "allow"}, "on_eror"),
     "an unknown on_error": ({"name": "x", "command": ["true"], "on_error": "ignore"}, "block"),

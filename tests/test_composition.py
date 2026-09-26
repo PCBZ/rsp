@@ -6,9 +6,8 @@ import sys
 
 import pytest
 
+from plugins import ECHO
 from rsp.runtime import ConfigError, OnError, Plugin, Runtime, Verdict
-
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
 
 def fake(

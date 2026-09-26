@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import re
 
 import jsonschema
 import pytest
 
+from plugins import ROOT
 from rsp.spans import Span, valid_span
 
-ROOT = pathlib.Path(__file__).parent.parent
 TABLE_PATH = ROOT / "examples" / "gitleaks-offsets.json"
 TABLE = json.loads(TABLE_PATH.read_text(encoding="utf-8"))
 CASES = TABLE["tests"]

@@ -5,20 +5,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import time
 
 import pytest
 
+from plugins import ECHO, script
 from rsp import process as runtime
 from rsp.process import Invocation, Outcome, invoke
 
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 CAP = 4096
-
-
-def script(body: str) -> list[str]:
-    return [sys.executable, "-c", body]
 
 
 def test_reference_plugin_round_trips() -> None:

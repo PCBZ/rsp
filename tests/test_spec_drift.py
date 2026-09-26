@@ -8,7 +8,8 @@ import re
 
 import pytest
 
-ROOT = pathlib.Path(__file__).parent.parent
+from plugins import ROOT
+
 SPEC = (ROOT / "SPEC.md").read_text(encoding="utf-8")
 CLAUSES = dict(
     re.findall(r"\*\*([A-Z]+\d+)\.\*\*(.*?)(?=\n\*\*[A-Z]+\d+\.\*\*|\n---|\n## )", SPEC, re.DOTALL)

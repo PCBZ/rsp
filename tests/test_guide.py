@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-import pathlib
 import re
 
 import pytest
 
+from plugins import ROOT
 from rsp.spans import Span, valid_span
 
-ROOT = pathlib.Path(__file__).parent.parent
 GUIDE = ROOT / "WRITING-A-PLUGIN.md"
 
 # A fenced block whose first line is a comment naming its source file.

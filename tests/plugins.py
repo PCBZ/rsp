@@ -17,6 +17,15 @@ from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).parent.parent
 MANIFEST = "conformance.json"
+# Absolute: a relative one makes a test pass or fail by where pytest was run.
+ECHO = [sys.executable, str(ROOT / "plugins/rsp-echo/main.py")]
+
+
+def script(body: str) -> list[str]:
+    """A plugin that is one expression, for a misbehaviour no fixture should keep."""
+    return [sys.executable, "-c", body]
+
+
 # Set in CI, where a skipped plugin proves nothing; locally a missing toolchain skips.
 REQUIRED = os.environ.get("RSP_REQUIRE_ALL_PLUGINS") == "1"
 

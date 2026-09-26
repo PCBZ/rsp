@@ -11,13 +11,12 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-from plugins import REQUIRED, for_role
+from plugins import REQUIRED, ROOT, for_role
 from rsp.cli import main
 from rsp.config import load
 from rsp.ingest import CHUNK, documents, ingest
 from rsp.runtime import ConfigError
 
-ROOT = pathlib.Path(__file__).parent.parent
 DOCS = ROOT / "demo" / "sample-docs"
 CONFIG = ROOT / "demo" / "rsp.toml"
 

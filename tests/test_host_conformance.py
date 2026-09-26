@@ -14,10 +14,10 @@ from typing import Any
 
 import pytest
 
+from plugins import ROOT
 from rsp.process import DEFAULT_MAX_OUTPUT
 from rsp.runtime import OnError, Plugin, Runtime, Verdict
 
-ROOT = pathlib.Path(__file__).parent.parent
 CASES = sorted((ROOT / "conformance" / "host").glob("*.json"))
 REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
 # What rsp-replay understands. It crashes on anything else, so a typo would pass

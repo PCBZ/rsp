@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from llama_index.core.schema import BaseNode
 
-ECHO = next(one for one in for_role("echo"))
+ECHO_PLUGIN = next(one for one in for_role("echo"))
 GITLEAKS = for_role("gitleaks")
 
 # The echo plugin's markers (plugins/rsp-echo/main.py).
@@ -50,7 +50,7 @@ def _forget() -> None:
 
 @pytest.fixture(scope="module")
 def echo() -> Runtime:
-    return Runtime([Plugin(name=ECHO.name, command=list(ECHO.command))])
+    return Runtime([Plugin(name=ECHO_PLUGIN.name, command=list(ECHO_PLUGIN.command))])
 
 
 def pipeline(runtime: Runtime, **kwargs: Any) -> IngestionPipeline:
