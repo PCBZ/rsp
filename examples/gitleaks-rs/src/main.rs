@@ -1,5 +1,4 @@
-//! One JSON object in, one out, then exit (T1). Diagnostics go to stderr: a
-//! stray line on stdout is indistinguishable from a response (T2).
+//! One JSON object in, one out, then exit (T1); diagnostics to stderr (T2).
 
 use std::io::{self, Read, Write};
 

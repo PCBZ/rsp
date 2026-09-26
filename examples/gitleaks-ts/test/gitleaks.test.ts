@@ -1,15 +1,6 @@
 /**
- * The conversion from gitleaks' line-and-column positions to the byte offsets
- * SPEC.md S1 requires.
- *
- * The table is `examples/gitleaks-offsets.json`, shared with the Go and Rust
- * adapters, because the numbers in it are facts about gitleaks rather than
- * about any of the three. What stays here is what this language makes
- * possible and the others do not.
- *
- * None of it needs the binary: the input is a report, which is data. What the
- * binary emits for new content is a separate question, checked in CI by the
- * cross-process cases.
+ * Line-and-column to byte offsets (S1). No binary needed: a report is data.
+ * Cases belong in the shared table; only what it cannot hold stays here.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -49,11 +40,8 @@ describe("the shared offset table", () => {
 
 describe("what only this language can get wrong", () => {
   it("drops a span inside a character", () => {
-    // Offsets inside 密, with Match the bytes they actually cover — subarray
-    // truncates rather than failing, and a lone continuation byte decodes to
-    // U+FFFD, so the slice comparison passes and only the boundary check can
-    // refuse them. Each adapter spells those bytes in its own way and none of
-    // the spellings is valid UTF-8, which is why this case is not in the JSON.
+    // Offsets inside 密, with Match what they cover, so only the boundary check
+    // refuses them. The shared table cannot hold it: those bytes are not UTF-8.
     const KEY = "AKIALALEMEL33243OLIB";
     const inside: Finding = {
       RuleID: "private-key",

@@ -1,5 +1,4 @@
-//! Wraps the gitleaks binary, through the same two interfaces as the Go and
-//! TypeScript plugins: the `gitleaks stdin` command and its report's fields.
+//! Wraps gitleaks using only `gitleaks stdin` and its report.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -9,10 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
-/// A range to mask, in byte offsets (S1). Rust indexes a `str` by byte, so
-/// `&content[start..end]` already means that — but it panics rather than
-/// mis-slicing when an offset lands inside a character, which is why
-/// `usable` runs before any slice does.
+/// A range to mask, in byte offsets (S1), which is what a `str` indexes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Span {
     pub start: usize,
@@ -21,9 +17,8 @@ pub struct Span {
     pub kind: String,
 }
 
-/// The part of a gitleaks report a chunk can have. Every field defaults, so a
-/// finding that arrives without a position is a finding with line zero rather
-/// than a parse failure — the difference between a BLOCK and a crash.
+/// The part of a gitleaks report a chunk can have. Fields default, so a finding
+/// without a position becomes a BLOCK rather than a parse failure.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct Finding {
@@ -40,8 +35,7 @@ pub struct Finding {
 /// Separates "found something" from gitleaks failing, which shares 1.
 const FOUND: i32 = 2;
 
-/// How to start the tool. A command rather than a path so a test can put a
-/// stand-in here with its answers already attached.
+/// How to start the tool: a command, so a test can attach a stand-in's answers.
 pub struct Gitleaks {
     command: Vec<String>,
 }
@@ -56,9 +50,8 @@ impl Gitleaks {
         Self { command }
     }
 
-    /// Runs the binary once. The status is why this exists: a gitleaks that
-    /// could not run prints nothing, exactly like a clean chunk, so ignoring
-    /// it would turn every failure into an ALLOW (E1, D3).
+    /// Runs the binary once. A failed run prints nothing, like a clean chunk,
+    /// so only the status tells them apart (E1, D3).
     fn run(&self, args: &[&str], input: &str) -> Result<String, Error> {
         let (binary, rest) = self.command.split_first().ok_or("no gitleaks command")?;
         let mut child = Command::new(binary)
@@ -68,16 +61,14 @@ impl Gitleaks {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        // On a thread, because a report large enough to fill the stdout pipe
-        // would otherwise deadlock a parent still writing the chunk it is a
-        // report of. Go and Node pump the child's stdin for you; Rust does not.
+        // On a thread: a tool that fills stdout before reading would deadlock a
+        // parent still writing the chunk. Go and Node do so for you; Rust does not.
         let mut stdin = child.stdin.take().ok_or("stdin was not a pipe")?;
         let chunk = input.to_owned();
         let writer = thread::spawn(move || stdin.write_all(chunk.as_bytes()));
 
         let output = child.wait_with_output()?;
-        // A closed pipe means the tool exited early; its status says why, so
-        // this failure is not the one worth reporting.
+        // A closed pipe means the tool exited early, and its status says why.
         let _ = writer.join();
 
         if !output.status.success() && output.status.code() != Some(FOUND) {
@@ -86,12 +77,10 @@ impl Gitleaks {
         Ok(String::from_utf8(output.stdout)?.trim().to_owned())
     }
 
-    /// Carried in the declaration so a cache key includes it (D4).
     pub fn version(&self) -> Result<String, Error> {
         self.run(&["version"], "")
     }
 
-    /// The findings for one chunk.
     pub fn scan(&self, content: &str) -> Result<Vec<Finding>, Error> {
         // "-" is gitleaks' own spelling of stdout; /dev/stdout fails its
         // writability pre-check. --no-banner keeps stdout to the report alone.
@@ -115,13 +104,8 @@ impl Gitleaks {
     }
 }
 
-/// Converts gitleaks' positions into byte offsets.
-///
-/// Its columns count from the newline byte ending the previous line, not from
-/// the line's first byte, so only line one matches the 1-based column anyone
-/// assumes. EndColumn belongs to EndLine, which differs whenever a finding
-/// spans lines. Anything that does not slice Match back out is dropped, and
-/// the caller turns a dropped finding into a BLOCK.
+/// Converts gitleaks' positions to byte offsets, dropping a finding it cannot
+/// place. The quirks it corrects are the notes in gitleaks-offsets.json.
 pub fn to_spans(findings: &[Finding], content: &str) -> Vec<Span> {
     let origins = column_origins(content);
     findings
@@ -129,15 +113,12 @@ pub fn to_spans(findings: &[Finding], content: &str) -> Vec<Span> {
         .filter_map(|finding| {
             let from = origin(&origins, finding.start_line)?;
             let to = origin(&origins, finding.end_line)?;
-            // Checked, because a column is a number someone else chose: added
-            // straight it overflows into a panic in debug and a wrapped span
-            // in release, where the answer owed is a dropped finding.
+            // Checked: a column is someone else's number, and overflow panics in
+            // debug and wraps in release where a dropped finding is owed.
             let start = from.checked_add(finding.start_column)?.checked_sub(1)?;
             let end = to.checked_add(finding.end_column)?;
             let (start, end) = (usize::try_from(start).ok()?, usize::try_from(end).ok()?);
-            // What S3 will check, checked here: an adapter should not hand the
-            // host a span it is going to reject, and in this language an
-            // unchecked one takes the plugin down instead of the verdict.
+            // `usable` first (S3): slicing off a char boundary panics the plugin.
             if !usable(start, end, content) || content[start..end] != finding.matched {
                 return None;
             }
