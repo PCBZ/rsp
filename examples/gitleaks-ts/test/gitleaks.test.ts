@@ -2,151 +2,68 @@
  * The conversion from gitleaks' line-and-column positions to the byte offsets
  * SPEC.md S1 requires.
  *
- * This is the only part of the adapter with logic, and it needs no binary: the
- * input is a report, which is data. Every report below is transcribed from what
- * gitleaks 8.30.1 actually emitted for that content — inventing the numbers is
- * how the end offset came to be wrong for anything spanning two lines, since a
- * fabricated report agrees with whatever the code assumes.
+ * The table is `examples/gitleaks-offsets.json`, shared with the Go and Rust
+ * adapters, because the numbers in it are facts about gitleaks rather than
+ * about any of the three. What stays here is what this language makes
+ * possible and the others do not.
  *
- * What the binary emits for new content is a separate question, checked in CI
- * by the cross-process cases. Only that one needs gitleaks installed.
+ * None of it needs the binary: the input is a report, which is data. What the
+ * binary emits for new content is a separate question, checked in CI by the
+ * cross-process cases.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { toSpans, type Finding } from "../src/gitleaks.ts";
+import { toSpans, type Finding, type Span } from "../src/gitleaks.ts";
 
-const KEY = "AKIALALEMEL33243OLIB";
-
-const PEM = [
-  "-----BEGIN RSA PRIVATE KEY-----",
-  "MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu",
-  "KUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==",
-  "-----END RSA PRIVATE KEY-----",
-].join("\n");
-
-/** The reported range, sliced out of the content the report describes. */
-function sliced(finding: Finding, content: string): string {
-  const [span] = toSpans([finding], content);
-  assert.ok(span, "expected one span");
-  return Buffer.from(content, "utf8").subarray(span.start, span.end).toString("utf8");
+interface Case {
+  tcId: number;
+  comment: string;
+  flags: string[];
+  content: string;
+  findings: Finding[];
+  spans: Span[];
 }
 
-function key(
-  StartLine: number,
-  EndLine: number,
-  StartColumn: number,
-  EndColumn: number,
-  Match = KEY,
-): Finding {
-  return { RuleID: "aws-access-token", StartLine, EndLine, StartColumn, EndColumn, Match };
+const table: { notes: Record<string, string>; tests: Case[] } = JSON.parse(
+  readFileSync(join(import.meta.dirname, "..", "..", "gitleaks-offsets.json"), "utf8"),
+);
+
+function why(test: Case): string {
+  return [test.comment, ...test.flags.map((flag) => table.notes[flag])].join("\n");
 }
 
-describe("toSpans", () => {
-  it("returns nothing for an empty report", () => {
-    assert.deepEqual(toSpans([], "anything"), []);
+describe("the shared offset table", () => {
+  it("has not lost cases to a path that resolved to nothing", () => {
+    assert.ok(table.tests.length >= 13, `${table.tests.length} cases`);
   });
 
-  it("converts a position on the first line", () => {
-    const content = `deploy with ${KEY} today`;
-    assert.deepEqual(toSpans([key(1, 1, 13, 32)], content), [
-      { start: 12, end: 32, type: "aws-access-token" },
-    ]);
-  });
+  for (const test of table.tests) {
+    it(`converts ${test.comment}`, () => {
+      assert.deepEqual(toSpans(test.findings, test.content), test.spans, why(test));
+    });
+  }
+});
 
-  it("counts bytes, not characters, when multi-byte text precedes the key", () => {
-    // 密钥 is two characters and six bytes, so a character index would say 3.
-    const content = `密钥 ${KEY} 在后面`;
-    const [span] = toSpans([key(1, 1, 8, 27)], content);
-    assert.equal(span?.start, 7);
-    assert.equal(sliced(key(1, 1, 8, 27), content), KEY);
-  });
-
-  it("counts a later line's columns from the newline before it", () => {
-    // gitleaks reports column 11 for a key at byte 16 of a line starting at 7:
-    // its columns run from the newline byte, so they are one lower than a
-    // line-relative column would be. Assuming otherwise puts the span one byte
-    // early, which slices a leading character and drops the key's last.
-    const content = `header\nexport K=${KEY}\n`;
-    const [span] = toSpans([key(2, 2, 11, 30)], content);
-    assert.equal(span?.start, 16);
-    assert.equal(sliced(key(2, 2, 11, 30), content), KEY);
-  });
-
-  it("counts bytes across multi-byte lines above the finding", () => {
-    const content = `密钥\n说明\nK=${KEY}\n`;
-    assert.equal(sliced(key(3, 3, 4, 23), content), KEY);
-  });
-
-  it("spans a finding that ends on a different line than it starts on", () => {
-    // A PEM block is the ordinary case for this, and the one that shows why
-    // EndColumn belongs to EndLine: read against the start line it lands 141
-    // bytes early, redacting the first line of the key and publishing the rest.
-    const content = `cfg:\n${PEM}\ntrailing\n`;
-    const finding: Finding = {
+describe("what only this language can get wrong", () => {
+  it("drops a span inside a character", () => {
+    // Offsets inside 密, with Match the bytes they actually cover — subarray
+    // truncates rather than failing, and a lone continuation byte decodes to
+    // U+FFFD, so the slice comparison passes and only the boundary check can
+    // refuse them. Each adapter spells those bytes in its own way and none of
+    // the spellings is valid UTF-8, which is why this case is not in the JSON.
+    const KEY = "AKIALALEMEL33243OLIB";
+    const inside: Finding = {
       RuleID: "private-key",
-      StartLine: 2,
-      EndLine: 5,
-      StartColumn: 2,
-      EndColumn: 30,
-      Match: PEM,
-    };
-    assert.deepEqual(toSpans([finding], content), [
-      { start: 5, end: 5 + Buffer.byteLength(PEM), type: "private-key" },
-    ]);
-  });
-
-  it("reports every occurrence, each with its own line's origin", () => {
-    const content = `${KEY}\nfiller\n${KEY}`;
-    const spans = toSpans([key(1, 1, 1, 20), key(3, 3, 2, 21)], content);
-    assert.deepEqual(
-      spans.map((span) => span.start),
-      [0, 28],
-    );
-  });
-
-  it("carries the rule id through as the finding type", () => {
-    const content = KEY;
-    const [span] = toSpans([{ ...key(1, 1, 1, 20), RuleID: "private-key" }], content);
-    assert.equal(span?.type, "private-key");
-  });
-
-  it("drops a finding on a line the content does not have", () => {
-    // Defensive: the host validates spans anyway (S3), but a span it rejects
-    // blocks the chunk, so an adapter should not manufacture one.
-    assert.deepEqual(toSpans([key(99, 99, 1, 20)], "one line"), []);
-  });
-
-  it("drops a span the host would reject", () => {
-    const content = `密钥 ${KEY}`;
-    // subarray truncates rather than failing, so an end past the content can
-    // still slice to Match; offsets inside 密 are not a character.
-    const pastEnd = key(1, 1, 8, 400);
-    const insideRune: Finding = { ...key(1, 1, 2, 2), Match: "\ufffd" };
-
-    assert.deepEqual(toSpans([pastEnd], content), []);
-    assert.deepEqual(toSpans([insideRune], content), []);
-  });
-
-  it("drops a finding with an empty match", () => {
-    // Offsets inside a character, which the slice check alone would accept.
-    const finding: Finding = {
-      RuleID: "aws-access-token",
       StartLine: 1,
       EndLine: 1,
-      StartColumn: 3,
+      StartColumn: 2,
       EndColumn: 2,
-      Match: "",
+      Match: "�",
     };
-    assert.deepEqual(toSpans([finding], "密钥"), []);
-  });
 
-  it("drops a finding whose offsets do not slice the match back out", () => {
-    // The check that makes the arithmetic self-auditing: gitleaks has had
-    // off-by-one bugs in these columns, and a span nobody verified redacts the
-    // wrong bytes. Dropping it is not letting it through — the caller blocks
-    // the chunk when a finding produced no span.
-    const content = `deploy with ${KEY} today`;
-    assert.deepEqual(toSpans([key(1, 1, 14, 32)], content), []);
+    assert.deepEqual(toSpans([inside], `密钥 ${KEY}`), []);
   });
 });

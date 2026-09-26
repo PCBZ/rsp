@@ -16,6 +16,10 @@ $ echo '{"rsp_version":"0.1","hook":"handshake"}' | go run .
 
 Needs `gitleaks` on `PATH`, or `RSP_GITLEAKS`. No dependencies.
 
+Run the tests with `go test -count=1 ./...`. The offset table they read is
+outside this module, so `go test` does not track it, and a cached pass
+outlives a change to it.
+
 A host should point at a built binary rather than at `go run`, which compiles
 on every call and a call is a process (Q6). The conformance kit runs it from
 source by default so that a clone needs no build step, and CI builds it once

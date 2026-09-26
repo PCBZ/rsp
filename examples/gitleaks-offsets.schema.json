@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/PCBZ/rsp/examples/gitleaks-offsets.schema.json",
+  "title": "gitleaks offset table",
+  "description": "The shape of the table every adapter under examples/ reads. Structure only: that a span is in range, on a UTF-8 boundary, and slices to its finding's Match is a property of the content beside it, which no schema can see. tests/test_offset_table.py checks those.",
+  "type": "object",
+  "required": ["tool", "schema", "about", "notes", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "The binary and version the numbers were transcribed from."
+    },
+    "schema": {
+      "type": "string",
+      "description": "This file, named the way Wycheproof names its schemas."
+    },
+    "about": { "type": "string" },
+    "notes": {
+      "type": "object",
+      "description": "A reason, once, keyed by the flag that cites it. JSON has no comments.",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/case" }
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "required": ["tcId", "comment", "flags", "content", "findings", "spans"],
+      "additionalProperties": false,
+      "properties": {
+        "tcId": { "type": "integer", "minimum": 1 },
+        "comment": { "type": "string", "minLength": 1 },
+        "flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "content": { "type": "string" },
+        "findings": {
+          "type": "array",
+          "description": "A gitleaks report, as gitleaks writes it.",
+          "items": { "$ref": "#/$defs/finding" }
+        },
+        "spans": {
+          "type": "array",
+          "description": "What the adapter must produce. Empty means it must produce none.",
+          "items": { "$ref": "#/$defs/span" }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["RuleID", "Match"],
+      "additionalProperties": false,
+      "properties": {
+        "RuleID": { "type": "string" },
+        "Match": { "type": "string" },
+        "StartLine": { "type": "integer" },
+        "EndLine": { "type": "integer" },
+        "StartColumn": { "type": "integer" },
+        "EndColumn": { "type": "integer" }
+      }
+    },
+    "span": {
+      "type": "object",
+      "required": ["start", "end", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 1 },
+        "type": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -100,7 +100,9 @@ jobs:
         run: |
           test -z "$(gofmt -l .)"
           go vet ./...
-          go test ./...
+          # -count=1: the shared offset table lives outside this module, so a
+          # cached result survives a change to it.
+          go test -count=1 ./...
           go build -o "${RUNNER_TEMP}/rsp-gitleaks-go" .
 
       # Built once for the same reason, and released: a debug build of the
