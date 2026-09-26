@@ -192,27 +192,29 @@ class Runtime:
                     return self._blocked(content, types, severities, contributors, reasons)
                 continue
 
+            declared: list[Span] = []
+            if said is Verdict.REDACT:
+                validated = _spans_of(reply.payload, order, data)
+                if validated is None:
+                    # A response the host cannot use is a plugin error (S3, V3):
+                    # nothing says which of its claims were sound, so none is kept.
+                    if self._failed(plugin, "unusable spans", reasons):
+                        return self._blocked(content, types, severities, contributors, reasons)
+                    continue
+                declared = validated
+
             contributors.append(plugin.name)
             if isinstance(reason := reply.payload.get("reason"), str):
                 reasons.append(f"{plugin.name}: {reason}")
             if isinstance(severity := reply.payload.get("severity"), str):
                 severities.add(severity)
+            spans.extend(declared)
+            types.update(span.type for span in declared if span.type)
 
             if said is Verdict.BLOCK:
                 # Short-circuit: later verdicts about rejected content go unused (D9).
                 reasons.append(f"{plugin.name}: BLOCK")
                 return self._blocked(content, types, severities, contributors, reasons)
-
-            if said is Verdict.REDACT:
-                declared = _spans_of(reply.payload, order, data)
-                if declared is None:
-                    # Void the whole response (S3, V3): no telling which spans are sound.
-                    contributors.pop()
-                    if self._failed(plugin, "unusable spans", reasons):
-                        return self._blocked(content, types, severities, contributors, reasons)
-                    continue
-                spans.extend(declared)
-                types.update(span.type for span in declared if span.type)
 
             if _STRICTNESS[said] > _STRICTNESS[verdict]:
                 verdict = said

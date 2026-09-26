@@ -284,3 +284,25 @@ def test_evaluate_does_not_raise_on_metadata_that_contains_itself() -> None:
 
     assert result.verdict is Verdict.BLOCK
     assert result.content == "text"
+
+
+def test_a_voided_response_contributes_nothing_to_provenance() -> None:
+    """A voided response's severity would be a claim no surviving plugin made (S3, V3)."""
+    voided = fake(
+        "unplaceable",
+        {
+            "verdict": "REDACT",
+            "spans": [{"start": 0, "end": 9999}],
+            "replacement": "[X]",
+            "severity": "critical",
+            "reason": "found something it could not point at",
+        },
+        on_error=OnError.ALLOW,
+    )
+
+    result = runtime(voided).evaluate("on_chunk", "hello")
+
+    assert result.verdict is Verdict.ALLOW
+    assert result.provenance == {"rsp.verdict": "ALLOW"}
+    assert not any("could not point at" in reason for reason in result.reasons)
+    assert any("unusable spans" in reason for reason in result.reasons)
