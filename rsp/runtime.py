@@ -206,11 +206,28 @@ class Runtime:
                     return self._blocked(content, types, severities, contributors, reasons)
                 continue
 
+            declared: list[Span] = []
+            if said is Verdict.REDACT:
+                validated = _spans_of(reply.payload, order, data)
+                if validated is None:
+                    # A response the host cannot use is a plugin error (S3, V3).
+                    # Applying this plugin's other spans would let it report
+                    # nothing by reporting garbage, and the host cannot tell
+                    # which of its claims were sound. Judged before any of it is
+                    # kept: a response undone field by field keeps whichever
+                    # field the undoing forgets.
+                    if self._failed(plugin, "unusable spans", reasons):
+                        return self._blocked(content, types, severities, contributors, reasons)
+                    continue
+                declared = validated
+
             contributors.append(plugin.name)
             if isinstance(reason := reply.payload.get("reason"), str):
                 reasons.append(f"{plugin.name}: {reason}")
             if isinstance(severity := reply.payload.get("severity"), str):
                 severities.add(severity)
+            spans.extend(declared)
+            types.update(span.type for span in declared if span.type)
 
             if said is Verdict.BLOCK:
                 # Short-circuits: later verdicts about rejected content are
@@ -218,20 +235,6 @@ class Runtime:
                 # never receives (D9).
                 reasons.append(f"{plugin.name}: BLOCK")
                 return self._blocked(content, types, severities, contributors, reasons)
-
-            if said is Verdict.REDACT:
-                declared = _spans_of(reply.payload, order, data)
-                if declared is None:
-                    # A response the host cannot use is a plugin error (S3, V3).
-                    # Applying this plugin's other spans would let it report
-                    # nothing by reporting garbage, and the host cannot tell
-                    # which of its claims were sound.
-                    contributors.pop()
-                    if self._failed(plugin, "unusable spans", reasons):
-                        return self._blocked(content, types, severities, contributors, reasons)
-                    continue
-                spans.extend(declared)
-                types.update(span.type for span in declared if span.type)
 
             if STRICTNESS[said] > STRICTNESS[verdict]:
                 verdict = said
