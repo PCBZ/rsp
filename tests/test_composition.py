@@ -1,4 +1,10 @@
-"""Verdict composition: dispatch, compose, and decide (D9, E1, H3, S5)."""
+"""Verdict composition: dispatch, compose, and decide (D9, E1, H3, S5).
+
+What a conforming host must do about a plugin that crashes, prints garbage,
+says nothing, or declares a hook it is not asked for lives in
+`conformance/host/` — asserted there against every implementation rather than
+here against this one.
+"""
 
 from __future__ import annotations
 
@@ -113,34 +119,6 @@ def test_overlapping_spans_from_different_plugins_coalesce() -> None:
     ).evaluate("on_chunk", "0123456789")
     assert result.content == "[B]6789"  # S6: highest severity keeps its replacement
     assert result.provenance["rsp.severity"] == "critical"
-
-
-def test_a_plugin_is_not_called_on_a_hook_it_did_not_declare() -> None:
-    """H3. The plugin here would BLOCK if reached."""
-    ingest_only = fake("ingest", {"verdict": "BLOCK"}, hooks=("on_chunk",))
-    assert runtime(ingest_only).evaluate("on_retrieve", "text").verdict is Verdict.ALLOW
-
-
-@pytest.mark.parametrize(
-    "misbehaviour",
-    ["__import__('os')._exit(1)", "print('not json')", "pass"],
-    ids=["crash", "garbage", "silence"],
-)
-def test_a_failing_plugin_blocks_by_default(misbehaviour: str) -> None:
-    """E1. Each of these answers the handshake, then fails on content."""
-    plugin = Plugin(name="flaky", command=[sys.executable, "-c", _handshake_then(misbehaviour)])
-    assert runtime(plugin).evaluate("on_chunk", "text").blocked
-
-
-def test_on_error_allow_lets_the_chunk_through() -> None:
-    crashing = Plugin(
-        name="crashing",
-        command=[sys.executable, "-c", _handshake_then("__import__('os')._exit(1)")],
-        on_error=OnError.ALLOW,
-    )
-    result = runtime(crashing).evaluate("on_chunk", "text")
-    assert result.verdict is Verdict.ALLOW
-    assert "on_error=allow" in result.reasons[0]
 
 
 def test_an_unrecognized_verdict_is_not_a_verdict() -> None:
