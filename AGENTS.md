@@ -51,7 +51,7 @@ uv run pytest
 
 ## Conventions
 
-- Call sites are written before the code they call. A file whose docstring says it does not run imports a module that doesn't exist yet — don't stub it, make it run, or test it.
+- Work top-down: write the call site first, then the code it calls. A file may import a module that does not exist yet — don't stub it, make it run, or test it. This is about the order you write in, not the order things sit in a file.
 - Every MUST in `SPEC.md` gets a conformance fixture the same day. Fixtures assert protocol behaviour, not implementation.
 - Comments cite decisions by number: `# span application is the runtime's job (D6)`.
 - Never an issue number. `D6` and `S1` resolve inside a clone; `#13` resolves
