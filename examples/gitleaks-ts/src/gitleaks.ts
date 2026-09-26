@@ -19,7 +19,7 @@ export interface Finding {
 }
 
 /** Read per call, not once at import, so a test can point it elsewhere. */
-export function binary(): string {
+function binary(): string {
   return process.env.RSP_GITLEAKS ?? "gitleaks";
 }
 

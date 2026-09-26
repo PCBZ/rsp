@@ -1,0 +1,5 @@
+{ "name": "error-silence-blocks", "clause": "E1, E2", "kind": "host",
+  "note": "A plugin that exits cleanly having written nothing has not allowed anything; it has answered nothing. Reading an empty stdout as consent is the failure E1 exists to name.",
+  "plugin": { "behaviour": "silent" },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

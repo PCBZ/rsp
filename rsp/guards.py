@@ -44,7 +44,7 @@ class RSPIngestGuard(TransformComponent):
                 content=node.get_content(),
                 metadata={"source": node.metadata.get("file_path"), "node_id": node.id_},
             )
-            if result.verdict is Verdict.BLOCK:
+            if result.blocked:
                 if self.on_block is not None:
                     self.on_block(node, result)
                 continue
@@ -74,7 +74,7 @@ class RSPRetrieveGuard(BaseNodePostprocessor):
                 content=scored.node.get_content(),
                 metadata={"node_id": scored.node.id_, "score": scored.score},
             )
-            if result.verdict is Verdict.BLOCK:
+            if result.blocked:
                 continue
             if result.verdict is Verdict.REDACT:
                 scored.node.set_content(result.content)
