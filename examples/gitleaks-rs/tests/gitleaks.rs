@@ -1,9 +1,5 @@
 //! Line-and-column to byte offsets. No binary needed: a report is data.
-//!
-//! The table is `examples/gitleaks-offsets.json`, shared with the Go and
-//! TypeScript adapters, because the numbers in it are facts about gitleaks
-//! rather than about any of the three. What stays here is what this language
-//! makes possible and the others do not.
+//! Cases belong in the shared table; only what it cannot hold stays here.
 
 use std::collections::BTreeMap;
 
@@ -75,10 +71,8 @@ fn finding(rule: &str, columns: (i64, i64), matched: &str) -> Finding {
 
 #[test]
 fn drops_a_span_inside_a_character() {
-    // Offsets inside 密, with Match the bytes they actually cover, so only the
-    // boundary check can refuse them. Each adapter spells those two bytes in
-    // its own way and none of the spellings is valid UTF-8, which is why this
-    // case cannot live in a JSON table with the rest.
+    // Offsets inside 密, with Match what they cover, so only the boundary check
+    // refuses them. The shared table cannot hold it: those bytes are not UTF-8.
     let case = finding("private-key", (2, 3), "\u{fffd}");
 
     assert!(to_spans(&[case], &format!("密钥 {KEY}")).is_empty());
@@ -86,12 +80,7 @@ fn drops_a_span_inside_a_character() {
 
 #[test]
 fn drops_a_column_that_cannot_be_added_to() {
-    // A report is data, and these are the largest numbers JSON can hand a
-    // 64-bit field. Unchecked they overflow, which is a panic in the debug
-    // build a clone runs through `cargo run` and a wrapped span in release —
-    // a plugin that dies or lies where it should have said BLOCK. Only this
-    // language is hurt: Go wraps without trapping and JavaScript has no
-    // integer to overflow.
+    // Only Rust needs this: Go wraps without trapping and JavaScript has no integer.
     for column in [i64::MAX, i64::MIN] {
         let case = finding("aws-access-token", (column, column), KEY);
         assert!(to_spans(&[case], KEY).is_empty());

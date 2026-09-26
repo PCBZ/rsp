@@ -1,5 +1,4 @@
-//! The protocol side, kept apart from the adapter so the shape SPEC.md
-//! requires lives in one file — including for whoever ports this again.
+//! The shape SPEC.md requires, apart from the tool so a port has one file to read.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -20,9 +19,7 @@ pub struct Request {
 
 pub const REPLACEMENT: &str = "[REDACTED:secret]";
 
-/// What this plugin says it is (H2). The version carries the binary's: for a
-/// wrapper it is the tool that decides verdicts, and the cache is keyed on
-/// this string (D4).
+/// What this plugin says it is (H2), versioned with the tool that decides (D4).
 pub fn declare(gitleaks: &Gitleaks) -> Result<Value, Error> {
     Ok(json!({
         "rsp_version": "0.1",
@@ -39,14 +36,12 @@ pub fn respond(gitleaks: &Gitleaks, request: &Request) -> Result<Value, Error> {
     }
 
     let findings = gitleaks.scan(&request.content)?;
-    // ALLOW carries nothing else: the common case is the cheap one (V2).
     if findings.is_empty() {
         return Ok(json!({"verdict": "ALLOW"}));
     }
 
     let spans = to_spans(&findings, &request.content);
-    // A finding with no span is a secret we cannot point at; redacting the
-    // rest would leave it in the chunk (V4).
+    // Redacting the rest would leave an unplaced secret in the chunk.
     if spans.len() != findings.len() {
         return Ok(json!({
             "verdict": "BLOCK",

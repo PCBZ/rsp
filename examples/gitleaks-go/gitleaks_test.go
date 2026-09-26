@@ -1,9 +1,5 @@
 // Line-and-column to byte offsets. No binary needed: a report is data.
-//
-// The table is examples/gitleaks-offsets.json, shared with the Rust and
-// TypeScript adapters, because the numbers in it are facts about gitleaks
-// rather than about any of the three. What stays here is what this language
-// makes possible and the others do not.
+// Cases belong in the shared table; only what it cannot hold stays here.
 package main
 
 import (
@@ -30,8 +26,7 @@ type Table struct {
 
 func table(t *testing.T) Table {
 	t.Helper()
-	// Outside the module, so `go test` does not track it and will serve a
-	// cached pass after the table changes. CI and the README pass -count=1.
+	// Outside the module, so `go test` caches past a change to it: use -count=1.
 	raw, err := os.ReadFile("../gitleaks-offsets.json")
 	if err != nil {
 		t.Fatal(err)
@@ -70,10 +65,8 @@ func TestEveryCaseInTheSharedTable(t *testing.T) {
 const key = "AKIALALEMEL33243OLIB"
 
 func TestToSpansDropsASpanInsideACharacter(t *testing.T) {
-	// Offsets inside 密, with Match the bytes they actually cover, so only the
-	// boundary check can refuse them. Each adapter spells those two bytes in
-	// its own way and none of the spellings is valid UTF-8, which is why this
-	// case cannot live in a JSON table with the rest.
+	// Offsets inside 密, with Match what they cover, so only the boundary check
+	// refuses them. The shared table cannot hold it: those bytes are not UTF-8.
 	inside := Finding{RuleID: "private-key", StartLine: 1, EndLine: 1,
 		StartColumn: 2, EndColumn: 3, Match: "\xaf\x86"}
 

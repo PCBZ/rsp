@@ -1,13 +1,14 @@
 """Run a directory through the pipeline and report what did not make it in.
 
-Needs the `llamaindex` extra. The embedding is a stand-in — a demo that asks
-for an API key is a demo nobody runs — so what this shows is which chunks were
-kept, redacted, or refused, not retrieval quality.
+Needs the `llamaindex` extra. The embedding is a stand-in so the demo needs no
+API key: what it shows is which chunks were kept, redacted, or refused.
 """
 
 from __future__ import annotations
 
 import pathlib
+from bisect import bisect_left
+from functools import cache
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from rsp.runtime import Plugin, Runtime
@@ -17,16 +18,13 @@ if TYPE_CHECKING:
 
     from rsp.runtime import Result
 
-# Small enough to retrieve precisely, large enough to hold a PEM block. A
-# secret split across two chunks is invisible to a scanner that needs its whole
-# shape, which is a property of where this hook sits, not of the scanner.
+# Large enough for a PEM block: a secret split across two chunks is invisible to on_chunk.
 CHUNK = 256
-READABLE = (".md", ".txt", ".rst")
+_READABLE = (".md", ".txt", ".rst")
 
 
 class Finding(NamedTuple):
-    """Where to go and look. Never what was found — a report that quotes a
-    secret is a second copy of it, in a log this time (Q8)."""
+    """Where to look, never what was found: quoting a secret makes a second copy (Q8)."""
 
     verdict: str
     types: str
@@ -51,13 +49,51 @@ class Report(NamedTuple):
 def documents(directory: pathlib.Path) -> list[Any]:
     from llama_index.core.schema import Document
 
-    found = sorted(p for p in directory.rglob("*") if p.suffix in READABLE and p.is_file())
+    found = sorted(p for p in directory.rglob("*") if p.suffix in _READABLE and p.is_file())
     if not found:
         raise FileNotFoundError(f"{directory}: nothing to ingest")
     return [
         Document(text=path.read_text(encoding="utf-8"), metadata={"file_path": str(path)})
         for path in found
     ]
+
+
+@cache
+def _newlines(source: str) -> tuple[int, ...]:
+    """Where the line breaks are in a file on disk.
+
+    Offsets and not the text: a cache of contents would hold every scanned
+    secret for as long as the process lives.
+    """
+    return tuple(
+        at for at, char in enumerate(pathlib.Path(source).read_text("utf-8")) if char == "\n"
+    )
+
+
+def _lines_of(node: BaseNode) -> str:
+    """The chunk's line range, since the host never sees a span (S4).
+
+    A single line number would send a reader to the top of the chunk as if the
+    secret were there.
+    """
+    source = node.metadata.get("file_path")
+    start = getattr(node, "start_char_idx", None)
+    end = getattr(node, "end_char_idx", None)
+    if source is None or start is None or end is None:
+        return "?"
+    # From the offsets, not the content: a redacted node's text has been rewritten.
+    newlines = _newlines(source)
+    return f"{bisect_left(newlines, start) + 1}-{bisect_left(newlines, end) + 1}"
+
+
+def _finding(verdict: str, provenance: dict[str, Any], node: BaseNode) -> Finding:
+    types = provenance.get("rsp.types") or ["unknown"]
+    return Finding(
+        verdict=verdict,
+        types=", ".join(types),
+        source=node.metadata.get("file_path", "?"),
+        lines=_lines_of(node),
+    )
 
 
 def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
@@ -72,17 +108,14 @@ def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
     def record(node: BaseNode, result: Result) -> None:
         findings.append(_finding("BLOCK", result.provenance, node))
 
-    # Before the splitter: a plugin that cannot introduce itself should fail
-    # here rather than after the corpus has been read and chunked.
-    runtime = Runtime(plugins)
+    runtime = Runtime(plugins)  # handshakes before the corpus is read
     chunks = SentenceSplitter(chunk_size=CHUNK, chunk_overlap=0)(documents(directory))
     kept = IngestionPipeline(
         transformations=[
             RSPIngestGuard(runtime=runtime, on_block=record),
             MockEmbedding(embed_dim=8),
         ],
-        # No docstore: with one, `store_doc_text` would persist the documents
-        # whole, down a path no transformation sees (K1).
+        # No docstore: it would store documents whole, past every guard (K1).
     ).run(nodes=chunks)
 
     findings += [
@@ -91,34 +124,3 @@ def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
         if node.metadata.get("rsp.verdict") == "REDACT"
     ]
     return Report(scanned=len(chunks), indexed=len(kept), findings=findings)
-
-
-def _finding(verdict: str, provenance: dict[str, Any], node: BaseNode) -> Finding:
-    types = provenance.get("rsp.types") or ["unknown"]
-    return Finding(
-        verdict=verdict,
-        types=", ".join(types),
-        source=node.metadata.get("file_path", "?"),
-        lines=_lines_of(node),
-    )
-
-
-def _lines_of(node: BaseNode) -> str:
-    """The chunk's line range.
-
-    A range rather than a line, because that is what the host knows: it never
-    sees a span (S4), so it can say which text was judged and not where in it
-    the finding was. A single line number here would send a reader to the top
-    of a chunk and let them believe the secret is there.
-    """
-    source = node.metadata.get("file_path")
-    start = getattr(node, "start_char_idx", None)
-    end = getattr(node, "end_char_idx", None)
-    if source is None or start is None or end is None:
-        return "?"
-    # From the offsets, not from the content: a redacted node has had its text
-    # rewritten, and a four-line key replaced by one marker would report a
-    # range that stops before the key ends.
-    document = pathlib.Path(source).read_text(encoding="utf-8")
-    first = document[:start].count("\n") + 1
-    return f"{first}-{first + document[start:end].count(chr(10))}"

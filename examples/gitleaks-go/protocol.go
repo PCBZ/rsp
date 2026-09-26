@@ -30,8 +30,7 @@ type Declaration struct {
 
 const replacement = "[REDACTED:secret]"
 
-// declare carries the binary's version in its own: for a wrapper it is the
-// tool that decides verdicts, and the cache is keyed on this string (D4).
+// declare carries the binary's version in its own: the tool decides verdicts (D4).
 func declare() (Declaration, error) {
 	tool, err := version()
 	if err != nil {
@@ -60,8 +59,7 @@ func respond(request Request) (any, error) {
 	}
 
 	spans := toSpans(findings, request.Content)
-	// A finding with no span is a secret we cannot point at; redacting the rest
-	// would leave it in the chunk (V4).
+	// Redacting the rest would leave an unplaced secret in the chunk.
 	if len(spans) != len(findings) {
 		return Response{
 			Verdict:  "BLOCK",

@@ -1,7 +1,6 @@
-"""Spans and redaction.
+"""Spans and redaction: what a chunk looks like after every plugin has spoken.
 
-What a chunk looks like after every plugin has spoken. Knows about byte offsets
-and severities; knows nothing about verdicts or plugins.
+Knows byte offsets and severities; knows no verdicts and no plugins.
 """
 
 from __future__ import annotations
@@ -12,11 +11,10 @@ from dataclasses import dataclass
 
 
 class Severity(enum.IntEnum):
-    """The scale S6 compares. IntEnum because the comparison is the point.
+    """The scale S6 compares.
 
-    A rank only. The wire value stays a string on the Span, so a plugin that
-    declares "catastrophic" ranks lowest without the operator losing the word
-    it chose.
+    A rank only: the wire value stays a string on the Span, so an unknown
+    "catastrophic" ranks lowest without the operator losing the word.
     """
 
     LOW = 0
@@ -28,8 +26,7 @@ class Severity(enum.IntEnum):
     def of(cls, wire: str | None) -> Severity:
         """Rank a declared severity. Unknown is lowest, never an error (S7, D8).
 
-        Case-sensitive: accepting "CRITICAL" would mean taking what a stricter
-        host refuses.
+        Case-sensitive, so this host takes nothing a stricter one refuses.
         """
         try:
             return cls[wire.upper()] if wire and wire.islower() else cls.LOW
@@ -41,9 +38,8 @@ class Severity(enum.IntEnum):
 class Span:
     """A range one plugin wants masked, plus what merging it needs.
 
-    `replacement` and `severity` belong to the response it arrived in (V3, V4).
-    `order` is the plugin's configured position, which settles ties in S6
-    without asking which plugin answered first.
+    `replacement` and `severity` come from its response (V3, V4); `order` is the
+    plugin's configured position, which breaks ties in S6.
     """
 
     start: int
@@ -59,12 +55,10 @@ class Span:
 
 
 def valid_span(span: Span, content: bytes) -> bool:
-    """Whether a span can be applied: in range, ordered, and on a character
-    boundary (S3). Unchecked, it lets a plugin choose when the host crashes.
-    """
+    """Whether a span is in range, ordered, and on a character boundary (S3)."""
     if span.start < 0 or span.end > len(content) or span.start > span.end:
         return False
-    # A continuation byte is 0b10xxxxxx; a boundary is anything else.
+    # A UTF-8 continuation byte is 0b10xxxxxx; a boundary is anything else.
     return all(
         i in (0, len(content)) or (content[i] & 0xC0) != 0x80 for i in (span.start, span.end)
     )
@@ -73,10 +67,9 @@ def valid_span(span: Span, content: bytes) -> bool:
 def merge_spans(spans: Iterable[Span]) -> list[Span]:
     """Coalesce overlapping and adjacent ranges into one (S6).
 
-    Adjacent too: `[REDACTED][REDACTED]` would show a reader where the boundary
-    fell. The surviving replacement is the highest-severity contributor's, ties
-    to the earlier plugin — a total order, so the result cannot depend on who
-    answered first.
+    Adjacent too, or `[REDACTED][REDACTED]` shows where the boundary fell. The
+    highest-severity replacement survives, ties to the earlier plugin, so the
+    result cannot depend on who answered first.
     """
     ordered = sorted(spans, key=lambda s: (s.start, s.end))
     merged: list[Span] = []
@@ -91,9 +84,7 @@ def merge_spans(spans: Iterable[Span]) -> list[Span]:
                 type="+".join(sorted(types)) or None,
                 severity=winner.severity,
                 replacement=winner.replacement,
-                # The winner's order, not the earliest: this breaks the *next*
-                # tie, which is against whoever holds the replacement now.
-                order=winner.order,
+                order=winner.order,  # the next tie is against whoever holds the replacement
             )
         else:
             merged.append(span)
@@ -103,12 +94,9 @@ def merge_spans(spans: Iterable[Span]) -> list[Span]:
 def redact(content: str, spans: Iterable[Span]) -> tuple[str, list[Span]]:
     """Apply every plugin's spans to the original content, once (S5).
 
-    One coordinate system: all offsets address the bytes passed in, so a
-    replacement of a different length cannot shift a later range.
-
-    Invalid spans are returned rather than skipped, so the caller can treat the
-    response as a plugin error (S3, E1) instead of silently masking the wrong
-    bytes.
+    All offsets address the bytes passed in, so a replacement of another length
+    cannot shift a later range. Invalid spans are returned, not applied, so the
+    caller can treat them as a plugin error (S3, E1).
     """
     data = content.encode("utf-8")
     usable, rejected = [], []

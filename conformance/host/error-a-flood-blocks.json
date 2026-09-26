@@ -1,0 +1,5 @@
+{ "name": "error-a-flood-blocks", "clause": "E1", "kind": "host",
+  "note": "E1 names exceeding an output limit beside crashing and timing out. A host that kept reading would be spending memory at a plugin's discretion, and one that stopped reading and trusted the prefix would judge content by half an answer.",
+  "plugin": { "behaviour": "flood" },
+  "request": { "rsp_version": "0.1", "hook": "on_chunk", "content": "ordinary text" },
+  "expect": { "verdict": "BLOCK", "content": "unchanged" } }

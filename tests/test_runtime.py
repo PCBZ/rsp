@@ -1,25 +1,19 @@
-"""Process lifecycle tests. Plugins here are inline scripts; a real
-misbehaving plugin replaces them once one exists."""
+"""Process lifecycle tests."""
 
 from __future__ import annotations
 
 import json
 import os
 import subprocess
-import sys
 import time
 
 import pytest
 
+from plugins import ECHO, script
 from rsp import process as runtime
 from rsp.process import Invocation, Outcome, invoke
 
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 CAP = 4096
-
-
-def script(body: str) -> list[str]:
-    return [sys.executable, "-c", body]
 
 
 def test_reference_plugin_round_trips() -> None:
@@ -44,17 +38,14 @@ def test_missing_binary_is_unspawnable() -> None:
 
 @pytest.mark.parametrize("command", [[], [None], [""], ["", "x"]])
 def test_malformed_command_is_unspawnable(command) -> None:
-    """`command` comes from rsp.yaml. An empty list raises IndexError and a
-    null entry raises TypeError, neither of which is an OSError."""
+    """An empty list raises IndexError and a null entry TypeError, neither an OSError."""
     result = invoke(command, b"{}")
     assert result.outcome is Outcome.UNSPAWNABLE
     assert result.stderr  # the reason survives for the operator
 
 
 def test_output_exactly_at_the_cap_is_not_oversize() -> None:
-    # Reads stdin first, like a real plugin. A script that exits without
-    # reading races feed(): the write usually lands in the pipe buffer, but
-    # when it loses, the outcome is UNDELIVERED and the test flakes.
+    # Reads stdin first: exiting unread races feed() and can come back UNDELIVERED.
     exact = script(f"import sys; sys.stdin.read(); sys.stdout.buffer.write(b'x' * {CAP})")
     result = invoke(exact, b"{}", timeout=5.0, max_output=CAP)
     assert result.outcome is Outcome.OK
@@ -65,7 +56,7 @@ def test_one_byte_over_the_cap_is_oversize() -> None:
     over = script(f"import sys; sys.stdin.read(); sys.stdout.buffer.write(b'x' * {CAP + 1})")
     result = invoke(over, b"{}", timeout=5.0, max_output=CAP)
     assert result.outcome is Outcome.OVERSIZE
-    assert len(result.stdout) == CAP  # truncated to the cap, not one past it
+    assert len(result.stdout) == CAP
 
 
 def test_hang_times_out_promptly() -> None:
@@ -82,8 +73,7 @@ def test_flood_is_capped() -> None:
 
 
 def test_partial_delivery_is_not_ok() -> None:
-    """A plugin that stopped reading never saw the whole request, so its
-    verdict is about content it does not have. Not a deadlock, and not OK."""
+    """A plugin that stopped reading judged content it does not have; nor may it deadlock."""
     result = invoke(script("print('{}')"), b"x" * (1 << 20), timeout=5.0)
     assert result.outcome is Outcome.UNDELIVERED
     assert result.duration < 5.0
@@ -111,13 +101,6 @@ def test_timeout_kills_the_whole_process_group() -> None:
     pytest.fail(f"grandchild {grandchild} survived the timeout")
 
 
-def test_no_zombies_left_behind() -> None:
-    before = _child_count()
-    for _ in range(5):
-        invoke(script("import time; time.sleep(10)"), b"{}", timeout=0.3)
-    assert _child_count() <= before
-
-
 def _child_count() -> int:
     out = subprocess.run(
         ["ps", "-o", "stat=", "-g", str(os.getpid())], capture_output=True, text=True, check=False
@@ -125,9 +108,15 @@ def _child_count() -> int:
     return sum(1 for line in out.splitlines() if "Z" in line)
 
 
+def test_no_zombies_left_behind() -> None:
+    before = _child_count()
+    for _ in range(5):
+        invoke(script("import time; time.sleep(10)"), b"{}", timeout=0.3)
+    assert _child_count() <= before
+
+
 def test_descendants_die_even_when_the_wrapper_exits_cleanly() -> None:
-    """The dangerous case is not the hang — it is the wrapper that returns 0
-    having left the tool it spawned running and holding the pipe."""
+    """A wrapper that returns 0 can leave its tool running and holding the pipe."""
     spawner = script(
         "import subprocess, sys\n"
         "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
@@ -149,8 +138,7 @@ def test_descendants_die_even_when_the_wrapper_exits_cleanly() -> None:
 
 
 class _FailingStream:
-    """A pipe that dies mid-read. Hard to provoke with a real plugin, easy to
-    hand to the drain loop."""
+    """A pipe that dies mid-read, which a real plugin rarely provokes."""
 
     def __init__(self, chunks: list[bytes], then: Exception | None) -> None:
         self._chunks, self._then = list(chunks), then
@@ -171,7 +159,7 @@ class _FakeProc:
         self.pid, self.returncode = 999999, returncode
         self.stdout, self.stderr = stdout, stderr
         self.stdin = _FailingStream([], None)
-        self.stdin.write = lambda data: len(data)  # type: ignore[method-assign]
+        self.stdin.write = len  # type: ignore[method-assign]
 
     def wait(self, timeout: float | None = None) -> int:
         return self.returncode
@@ -193,8 +181,7 @@ def test_stdout_read_failure_is_truncated(monkeypatch) -> None:
 
 
 def test_stderr_read_failure_does_not_block(monkeypatch) -> None:
-    """Diagnostics are not the protocol channel. A lost log line is not a
-    reason to reject content."""
+    """A lost log line is not a reason to reject content."""
     proc = _FakeProc(
         stdout=_FailingStream([b'{"verdict": "ALLOW"}'], None),
         stderr=_FailingStream([b"warming up"], OSError("input/output error")),
@@ -214,13 +201,12 @@ def test_invoke_never_raises() -> None:
 
 
 def test_a_flood_of_diagnostics_does_not_fail_the_call() -> None:
-    """stderr is not the protocol channel (E3). Capping it protects memory;
-    rejecting the response would turn a logging hiccup into dropped data."""
+    """Diagnostics are not the protocol channel (E3): capped for memory, never grounds to reject."""
     chatty = script('import sys; sys.stdin.read(); sys.stderr.write("x" * 200_000); print("{}")')
     result = invoke(chatty, b"{}", max_output=1 << 16)
     assert result.outcome is Outcome.OK
     assert result.stdout == b"{}\n"
-    assert len(result.stderr) == 1 << 16  # capped, not collected whole
+    assert len(result.stderr) == 1 << 16
 
 
 def test_a_flood_on_stdout_still_fails() -> None:

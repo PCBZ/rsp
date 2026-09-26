@@ -58,8 +58,7 @@ func TestRedactsWhatItCanPlace(t *testing.T) {
 }
 
 func TestBlocksRatherThanRedactingWhatItCanPlace(t *testing.T) {
-	// One of two findings mislocated: reporting the good span publishes the
-	// other secret, and ALLOW publishes both.
+	// The second finding is mislocated.
 	content := "deploy with " + key + " today"
 	fake(t, `[{"RuleID":"aws-access-token","StartLine":1,"EndLine":1,`+
 		`"StartColumn":13,"EndColumn":32,"Match":"`+key+`"},`+
@@ -85,7 +84,6 @@ func TestBlocksOnAFindingWithNoPosition(t *testing.T) {
 }
 
 func TestRefusesToAnswerWhenTheBinaryFails(t *testing.T) {
-	// Nothing on stdout, exactly like a clean chunk (E1, D3).
 	fake(t, "", "1")
 
 	if _, err := respond(Request{Hook: "on_chunk", Content: key}); err == nil {
@@ -102,7 +100,6 @@ func TestRefusesToAnswerOnAReportThatIsNotAReport(t *testing.T) {
 }
 
 func TestDeclaresTheWrappedToolsVersionInItsOwn(t *testing.T) {
-	// D4: the adapter's version alone would outlive the ruleset it judged with.
 	fake(t, "8.30.1", "0")
 
 	answer, err := respond(Request{Hook: "handshake"})

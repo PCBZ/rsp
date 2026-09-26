@@ -1,4 +1,10 @@
-"""Verdict composition: dispatch, compose, and decide (D9, E1, H3, S5)."""
+"""Verdict composition: dispatch, compose, and decide (D9, E1, H3, S5).
+
+What a conforming host must do about a plugin that crashes, prints garbage,
+says nothing, or declares a hook it is not asked for lives in
+`conformance/host/` — asserted there against every implementation rather than
+here against this one.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +12,8 @@ import sys
 
 import pytest
 
+from plugins import ECHO
 from rsp.runtime import ConfigError, OnError, Plugin, Runtime, Verdict
-
-ECHO = [sys.executable, "plugins/rsp-echo/main.py"]
 
 
 def fake(
@@ -58,19 +63,17 @@ def test_strictest_verdict_wins() -> None:
 
 
 def test_block_short_circuits_the_rest() -> None:
-    """A plugin after a BLOCK is not called: its verdict would be about content
-    already rejected, and calling it invites it to expect calls it won't get."""
+    """A verdict after a BLOCK would be about content already rejected (D9)."""
     never_runs = fake("late", {"verdict": "ALLOW"})
     result = runtime(fake("early", {"verdict": "BLOCK", "reason": "aws key"}), never_runs).evaluate(
         "on_chunk", "text"
     )
     assert result.blocked
-    assert result.provenance["rsp.plugins"] == ["early"]  # "late" never spoke
+    assert result.provenance["rsp.plugins"] == ["early"]
 
 
 def test_spans_from_several_plugins_apply_once_to_the_original() -> None:
-    """S5: both plugins address the same bytes, and a replacement of a
-    different length must not shift the other's range."""
+    """S5: a replacement of a different length must not shift the other plugin's range."""
     result = runtime(
         fake(
             "a",
@@ -118,34 +121,6 @@ def test_overlapping_spans_from_different_plugins_coalesce() -> None:
     assert result.provenance["rsp.severity"] == "critical"
 
 
-def test_a_plugin_is_not_called_on_a_hook_it_did_not_declare() -> None:
-    """H3. The plugin here would BLOCK if reached."""
-    ingest_only = fake("ingest", {"verdict": "BLOCK"}, hooks=("on_chunk",))
-    assert runtime(ingest_only).evaluate("on_retrieve", "text").verdict is Verdict.ALLOW
-
-
-@pytest.mark.parametrize(
-    "misbehaviour",
-    ["__import__('os')._exit(1)", "print('not json')", "pass"],
-    ids=["crash", "garbage", "silence"],
-)
-def test_a_failing_plugin_blocks_by_default(misbehaviour: str) -> None:
-    """E1. Each of these answers the handshake, then fails on content."""
-    plugin = Plugin(name="flaky", command=[sys.executable, "-c", _handshake_then(misbehaviour)])
-    assert runtime(plugin).evaluate("on_chunk", "text").blocked
-
-
-def test_on_error_allow_lets_the_chunk_through() -> None:
-    crashing = Plugin(
-        name="crashing",
-        command=[sys.executable, "-c", _handshake_then("__import__('os')._exit(1)")],
-        on_error=OnError.ALLOW,
-    )
-    result = runtime(crashing).evaluate("on_chunk", "text")
-    assert result.verdict is Verdict.ALLOW
-    assert "on_error=allow" in result.reasons[0]
-
-
 def test_an_unrecognized_verdict_is_not_a_verdict() -> None:
     """Guessing at 'ALLOOW' is how a typo becomes a silent allow (V1)."""
     result = runtime(fake("typo", {"verdict": "ALLOOW"})).evaluate("on_chunk", "text")
@@ -154,8 +129,7 @@ def test_an_unrecognized_verdict_is_not_a_verdict() -> None:
 
 
 def test_an_invalid_span_blocks_the_whole_chunk() -> None:
-    """S3 and E1. Applying the plugin's other spans would let it report nothing
-    by reporting garbage, and the host cannot tell which claims were sound."""
+    """S3, E1: the host cannot tell which of a lying plugin's spans were sound."""
     result = runtime(
         fake(
             "liar",
@@ -167,7 +141,7 @@ def test_an_invalid_span_blocks_the_whole_chunk() -> None:
         )
     ).evaluate("on_chunk", "0123456789")
     assert result.blocked
-    assert result.content == "0123456789"  # unchanged: nothing was applied
+    assert result.content == "0123456789"
 
 
 def test_a_plugin_that_cannot_introduce_itself_stops_construction() -> None:
@@ -177,8 +151,7 @@ def test_a_plugin_that_cannot_introduce_itself_stops_construction() -> None:
 
 
 def test_reasons_stay_out_of_provenance() -> None:
-    """Q8: provenance is written onto a stored node, and a plugin's free text
-    can quote the bytes it matched."""
+    """Q8: provenance is stored, and a plugin's free text can quote what it matched."""
     result = runtime(
         fake("chatty", {"verdict": "FLAG", "reason": "found AKIA1234 in line 2"})
     ).evaluate("on_chunk", "text")
@@ -229,16 +202,14 @@ def test_the_reference_plugin_still_composes() -> None:
     ids=lambda v: v if isinstance(v, str) else "",
 )
 def test_a_hostile_payload_cannot_crash_the_host(label: str, response: dict) -> None:
-    """Every one of these raised before: a plugin chose when the host fell
-    over, which is the attack D2 isolates it for."""
+    """A plugin must not choose when the host falls over (D2)."""
     result = runtime(fake("hostile", response)).evaluate("on_chunk", "0123456789")
     assert result.blocked, label
     assert result.content == "0123456789"
 
 
 def test_on_error_covers_semantic_failures_too() -> None:
-    """A plugin that returns an unusable response has failed as surely as one
-    that crashed, and on_error=allow was set with both in mind."""
+    """An unusable response is as much a failure as a crash."""
     lenient = fake("typo", {"verdict": "ALLOOW"}, on_error=OnError.ALLOW)
     result = runtime(lenient).evaluate("on_chunk", "text")
     assert result.verdict is Verdict.ALLOW
@@ -246,9 +217,7 @@ def test_on_error_covers_semantic_failures_too() -> None:
 
 
 def test_duplicate_plugin_names_are_refused() -> None:
-    """Names key the declarations, so a duplicate hands one plugin another's
-    capabilities — and a guard that never runs looks like one that found
-    nothing."""
+    """Names key the declarations, so a duplicate hands one plugin another's capabilities."""
     with pytest.raises(ConfigError, match="configured twice"):
         runtime(fake("same", {"verdict": "ALLOW"}), fake("same", {"verdict": "BLOCK"}))
 
@@ -262,8 +231,7 @@ def test_reasons_accumulated_before_a_block_survive_it() -> None:
 
 
 def test_an_unencodable_replacement_is_an_unusable_span() -> None:
-    """isinstance(x, str) checks the type; it does not check that the value can
-    reach a plugin. A lone surrogate passes the first and fails the second."""
+    """A lone surrogate passes a str check and still cannot be encoded."""
     result = runtime(
         fake(
             "hostile",
@@ -275,19 +243,16 @@ def test_an_unencodable_replacement_is_an_unusable_span() -> None:
 
 
 def test_content_the_host_cannot_encode_is_blocked_before_any_plugin_runs() -> None:
-    """A host can read a lone surrogate out of a mis-encoded file. No plugin
-    can be asked about content that cannot go on the wire."""
+    """A lone surrogate from a mis-encoded file cannot go on the wire to any plugin."""
     would_allow = fake("never-called", {"verdict": "ALLOW"})
     result = runtime(would_allow).evaluate("on_chunk", "\ud800")
     assert result.blocked
     assert "not encodable" in result.reasons[0]
-    assert "rsp.plugins" not in result.provenance  # nothing was consulted
+    assert "rsp.plugins" not in result.provenance
 
 
 def test_evaluate_does_not_raise_on_metadata_that_contains_itself() -> None:
-    """E2 has no exceptions, including for a host that hands in something no
-    encoder can walk. Before the cycle check this was a RecursionError out of
-    evaluate, which is the one thing the clause forbids."""
+    """E2 has no exceptions, even for input no encoder can walk."""
     cycle: dict[str, object] = {}
     cycle["self"] = cycle
     runtime = Runtime([Plugin(name="echo", command=ECHO)])
@@ -299,12 +264,7 @@ def test_evaluate_does_not_raise_on_metadata_that_contains_itself() -> None:
 
 
 def test_a_voided_response_contributes_nothing_to_provenance() -> None:
-    """A REDACT whose spans the host refuses is void in full (S3, V3).
-
-    Provenance is stored on the node; reasons are not. A severity surviving
-    the response it arrived in is a claim no plugin still standing has made,
-    written where a host routes on it.
-    """
+    """A voided response's severity would be a claim no surviving plugin made (S3, V3)."""
     voided = fake(
         "unplaceable",
         {
