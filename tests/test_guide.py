@@ -1,34 +1,27 @@
-"""The plugin guide quotes a plugin the conformance cases run against.
-
-A snippet that exists only in prose drifts from the code it describes and
-nobody notices, because prose does not fail. Every code block in the guide
-names the file it came from, and this checks it is still there.
-"""
+"""Each quoted block in the plugin guide must still be in the file it names: prose cannot fail."""
 
 from __future__ import annotations
 
 import json
-import pathlib
 import re
 
 import pytest
 
+from plugins import ROOT
 from rsp.spans import Span, valid_span
 
-ROOT = pathlib.Path(__file__).parent.parent
 GUIDE = ROOT / "WRITING-A-PLUGIN.md"
 
-# ```ts
-# // path/to/file.ts
-# ...lines...
-# ```
+# A fenced block whose first line is a comment naming its source file.
 QUOTED = re.compile(r"```\w+\n(?://|#) (\S+)\n(.*?)```", re.DOTALL)
 BLOCKS = QUOTED.findall(GUIDE.read_text(encoding="utf-8"))
+COMMAND = re.compile(r"\$ echo '([^']+)' \| my-plugin")
+# Any line after the command, so a lost reply fails the test rather than going unmatched.
+EXCHANGE = re.compile(COMMAND.pattern + r"\n([^\n]*)")
 
 
 def test_the_guide_quotes_something() -> None:
-    """Otherwise the check below is vacuous, and a rewrite that dropped every
-    quote would pass it."""
+    """Otherwise the check below is vacuous."""
     assert len(BLOCKS) >= 4
 
 
@@ -40,15 +33,13 @@ def test_every_quote_is_still_in_the_file(source: str, snippet: str) -> None:
     for line in quoted:
         assert line in lines, f"{source} no longer contains: {line.strip()}"
 
-    # In order and together, so a quote cannot be assembled from lines that
-    # are scattered through the file and no longer mean what it shows.
+    # In order and together: scattered lines no longer mean what the quote shows.
     first = lines.index(quoted[0])
     assert lines[first : first + len(quoted)] == quoted, f"{source}: the quote is no longer one run"
 
 
 def test_the_byte_offset_example_is_arithmetic_that_holds() -> None:
-    """The page teaches S1 with two numbers, and a wrong one teaches the
-    mistake it is warning about."""
+    """A wrong number would teach the mistake S1 warns about."""
     text = GUIDE.read_text(encoding="utf-8")
     example = re.search(r"content:\s+(\S+) (\S+)\n", text)
     assert example, "the byte-offset example is no longer in the form the code can check"
@@ -64,22 +55,11 @@ def test_the_byte_offset_example_is_arithmetic_that_holds() -> None:
     assert character != byte, "an example where they agree teaches nothing"
 
 
-COMMAND = re.compile(r"\$ echo '([^']+)' \| my-plugin")
-# The response is whatever follows the command, so a transcript that lost its
-# reply is a `None` this test must fail on rather than a pair it never sees.
-EXCHANGE = re.compile(COMMAND.pattern + r"\n([^\n]*)")
-
-
 def test_the_invented_transcripts_are_valid_protocol() -> None:
-    """The `$` examples show a plugin that does not exist, so no quote can
-    keep them honest — but a declaration missing a required field, or a span
-    outside its own content, would teach something the spec refuses.
-    """
+    """The `$` examples show a plugin that does not exist, so no quote keeps them honest."""
     text = GUIDE.read_text(encoding="utf-8")
     exchanges = EXCHANGE.findall(text)
-    # Counted apart from the pairs: a regex that only matches well-formed
-    # exchanges reports a malformed one as no exchange at all, and a test that
-    # skips what it cannot parse passes hardest on the transcript that broke.
+    # Counted apart: a malformed exchange would otherwise just not match.
     assert len(exchanges) == len(COMMAND.findall(text)), "a transcript has no response"
     assert len(exchanges) >= 2, "the transcripts are no longer in the form the code can check"
 
@@ -100,8 +80,6 @@ def test_the_invented_transcripts_are_valid_protocol() -> None:
         assert "replacement" in response, "V3"
         content = request["content"].encode("utf-8")
         for span in response["spans"]:
-            # The host's own predicate, not a second copy of S3: a span landing
-            # inside a multi-byte character satisfies the arithmetic and is
-            # still refused by every conforming host.
+            # The host's own predicate rather than a second copy of S3.
             assert valid_span(Span(span["start"], span["end"]), content), f"S3: {span}"
             assert span["start"] < span["end"], "an empty span redacts nothing (S3)"

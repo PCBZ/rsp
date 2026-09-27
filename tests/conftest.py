@@ -1,14 +1,9 @@
-"""Two extra columns in the HTML report: which clause, which implementation.
+"""Two extra report columns, clause and plugin: the matrix SPEC.md §10 keeps by hand.
 
-A list of test names is what the green tick already says. What a protocol
-publishes is a matrix — clause against implementation — which is the same thing
-SPEC.md §10 maintains by hand and drifts from reality between commits.
-
-The tests supply the values with `record_property`, so nothing here parses a
-case file a second time and the same values land in JUnit XML for whatever
-reads that instead. pytest-html is pinned below 5 because these two hooks took
-plain strings only from 4 onward, and a report with two silently empty columns
-looks exactly like a passing one.
+Tests supply the values with `record_property`, so nothing parses a case file
+twice and JUnit XML gets them too. pytest-html is pinned below 5 because these
+hooks took plain strings only from 4 onward, and two silently empty columns
+look like a pass.
 """
 
 from __future__ import annotations
@@ -18,9 +13,7 @@ import sys
 
 import pytest
 
-# The kit is shippable and therefore not a package: `conformance/run.py`
-# imports `harness` as a sibling, and the suite has to reach it the same way
-# rather than keeping a second copy of what a passing case means.
+# The kit ships standalone, not as a package, so `harness` is imported as a sibling.
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "conformance"))
 
 COLUMNS = ("clause", "plugin")

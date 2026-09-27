@@ -1,10 +1,5 @@
-# Coverage here is a signal, not a gate.
-#
-# The number that says whether this protocol is healthy is in SPEC.md §10:
-# how many normative clauses have a conformance case. Line coverage of the
-# reference implementation says how well this host is tested, which is a
-# different and smaller question — so a dip informs a reviewer rather than
-# blocking a merge.
+# A signal, not a gate: the protocol's health is clause coverage (SPEC.md §10),
+# and line coverage only says how well this one host is tested.
 coverage:
   status:
     project:

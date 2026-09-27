@@ -1,12 +1,4 @@
-/**
- * What the adapter does when gitleaks does not answer.
- *
- * A gitleaks that could not run prints nothing on stdout, and so does a
- * gitleaks that found nothing — one byte apart in the report, a world apart in
- * meaning. These tests prove the adapter tells them apart, and need no gitleaks
- * to do it: a shell script stands in, exiting with whichever status is under
- * test after draining the chunk the way a real scan would.
- */
+/** What the adapter does when gitleaks does not answer. A script stands in. */
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import path from "node:path";
@@ -32,7 +24,6 @@ describe("scan", () => {
   });
 
   it("throws when the binary fails instead of reporting a clean chunk", () => {
-    // Returning [] here would be a silent ALLOW for content nobody scanned.
     fake(1);
     assert.throws(() => scan("AKIALALEMEL33243OLIB"), /gitleaks exited 1/);
   });
@@ -43,9 +34,8 @@ describe("scan", () => {
   });
 
   it("throws when the binary dies before reading the chunk", () => {
-    // gitleaks' own fatal errors happen before it reads stdin — an unwritable
-    // report path is one — so the failure can surface as a broken pipe on the
-    // write instead of as a status. Both must end the same way.
+    // gitleaks' fatal errors come before it reads stdin, so failure can surface
+    // as a broken pipe instead of a status. Both must end the same way.
     process.env.RSP_GITLEAKS = "false";
     assert.throws(() => scan("anything"), /EPIPE|gitleaks exited 1/);
   });

@@ -6,9 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 
-# The protocol core has no runtime dependencies: subprocess plus JSON from the
-# stdlib. Anything that pulls in a third party belongs in an optional extra, so
-# that a plugin author installing rsp does not inherit a RAG framework.
+# No runtime dependencies: a plugin author installing rsp should not inherit a RAG framework.
 dependencies = []
 
 [project.optional-dependencies]
@@ -38,11 +36,19 @@ packages = ["rsp"]
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+# What ruff can check of AGENTS.md's Style section. No D1: it asks for more docstrings.
+extend-select = [
+    "ANN0", "ANN2", "B", "C4", "D2", "D3", "I", "N", "PIE", "PLW0108", "RET", "RUF", "SIM", "UP",
+]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"!rsp/**" = ["ANN"]
+
 [tool.coverage.run]
-source = ["rsp"]
+source = ["rsp"]  # plugins run as subprocesses, and conformance/ is data
 branch = true
 
 [tool.coverage.report]
-# Plugins are subprocesses and never imported, so coverage cannot see them,
-# and conformance/ is data.
 exclude_lines = ["if TYPE_CHECKING:", "raise NotImplementedError", "if __name__ =="]

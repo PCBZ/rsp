@@ -59,8 +59,7 @@ fn redacts_what_it_can_place() {
 
 #[test]
 fn blocks_rather_than_redacting_only_what_it_can_place() {
-    // One of two findings mislocated: reporting the good span publishes the
-    // other secret, and ALLOW publishes both.
+    // The second finding is mislocated.
     let content = format!("deploy with {KEY} today");
     let both = format!(
         "[{},{}]",
@@ -85,7 +84,6 @@ fn blocks_on_a_finding_with_no_position() {
 
 #[test]
 fn refuses_to_answer_when_the_binary_fails() {
-    // Nothing on stdout, exactly like a clean chunk (E1, D3).
     assert!(respond(&fake("", "1"), &chunk(KEY)).is_err());
 }
 
@@ -96,7 +94,6 @@ fn refuses_to_answer_on_a_report_that_is_not_a_report() {
 
 #[test]
 fn declares_the_wrapped_tools_version_in_its_own() {
-    // D4: the adapter's version alone would outlive the ruleset it judged with.
     let request = Request {
         hook: "handshake".into(),
         ..Request::default()
@@ -110,9 +107,7 @@ fn declares_the_wrapped_tools_version_in_its_own() {
 
 #[test]
 fn survives_a_tool_that_writes_before_it_reads() {
-    // The chunk and what the tool writes both exceed a pipe buffer, and the
-    // writing comes first. Sending stdin from this thread would block on a
-    // child already blocked on stdout, and neither side would ever move.
+    // The chunk and the tool's output both exceed a pipe buffer, output first.
     let content = KEY.repeat(8000);
     let bare = json!([{"RuleID": "aws-access-token", "Match": KEY}]).to_string();
 

@@ -1,7 +1,4 @@
-/**
- * The protocol side, kept apart from the adapter so the shape SPEC.md requires
- * lives in one file — including for whoever ports this to another language.
- */
+/** The shape SPEC.md requires, apart from the tool so a port has one file to read. */
 import { scan, toSpans, version, type Span } from "./gitleaks.ts";
 
 export interface Request {
@@ -27,11 +24,7 @@ export interface Declaration {
 
 export const REPLACEMENT = "[REDACTED:secret]";
 
-/**
- * What this plugin says it is (H2). The version carries the binary's: for a
- * wrapper it is the tool that decides verdicts, and the cache is keyed on this
- * string (D4).
- */
+/** What this plugin says it is (H2), versioned with the tool that decides (D4). */
 export function declaration(): Declaration {
   return {
     rsp_version: "0.1",
@@ -52,8 +45,7 @@ export function respond(request: Request): Response | Declaration {
   // ALLOW carries nothing else: the common case is the cheap one (V2).
   if (findings.length === 0) return { verdict: "ALLOW" };
 
-  // A finding with no span is a secret we cannot point at; redacting the rest
-  // would leave it in the chunk (V4).
+  // Redacting the rest would leave an unplaced secret in the chunk.
   if (spans.length !== findings.length) {
     return {
       verdict: "BLOCK",

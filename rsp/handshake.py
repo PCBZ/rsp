@@ -1,8 +1,4 @@
-"""Handshake.
-
-Who a plugin says it is, validated (H1, H2). One invocation of its own rather
-than the opening message of a stream, because one call is one process (Q6).
-"""
+"""Handshake: who a plugin says it is, validated (H1, H2)."""
 
 from __future__ import annotations
 
@@ -13,14 +9,13 @@ from typing import Any
 from rsp.codec import RSP_VERSION, call
 from rsp.process import DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, Outcome
 
-REQUIRED_DECLARATION_FIELDS = ("rsp_version", "name", "version", "hooks")
-
 
 @dataclass(frozen=True)
 class Handshake:
-    """What a plugin says it is (H2). Only fields the host acts on: `hooks`
-    gates dispatch (H3), `version` keys the cache (D4), `deterministic` decides
-    whether caching is legal.
+    """What a plugin says it is (H2).
+
+    Only the fields the host acts on: `hooks` gates dispatch (H3); `version` keys
+    the cache and `deterministic` decides whether caching is legal (D4).
     """
 
     rsp_version: str
@@ -35,18 +30,14 @@ class Handshake:
 
 def _declaration(payload: Mapping[str, Any]) -> Handshake | None:
     """Validate a declaration. Unknown fields are ignored, never an error (D8)."""
-    if any(field not in payload for field in REQUIRED_DECLARATION_FIELDS):
-        return None
-
-    hooks = payload["hooks"]
+    # Absent and wrongly typed are one property, so `get` settles both.
+    hooks = payload.get("hooks")
     if not isinstance(hooks, list) or not all(isinstance(hook, str) for hook in hooks):
         return None
-    if not all(isinstance(payload[f], str) for f in ("rsp_version", "name", "version")):
+    if not all(isinstance(payload.get(f), str) for f in ("rsp_version", "name", "version")):
         return None
 
-    # Defaulting rather than guessing: a plugin that did not say it is
-    # deterministic is not treated as one, because the cost of guessing wrong is
-    # a cached verdict from a plugin whose answer depends on when you asked.
+    # Absent means false: a wrong guess caches an answer that depends on when it was asked.
     deterministic = payload.get("deterministic", False)
     if not isinstance(deterministic, bool):
         return None
@@ -68,9 +59,8 @@ def handshake(
 ) -> tuple[Outcome, Handshake | None]:
     """Ask a plugin who it is, before sending it any content (H1).
 
-    Its own invocation, since one call is one process (Q6). Costs a spawn per
-    plugin per run that caching cannot remove — the cache key needs the version
-    this call exists to fetch.
+    Its own spawn, since one call is one process (Q6). Caching cannot remove it:
+    the cache key needs the version this call fetches.
     """
     reply = call(
         command,

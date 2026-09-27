@@ -1,12 +1,7 @@
-"""Every case in conformance/cases, against every plugin that can answer it.
+"""Every case in conformance/cases, against every plugin of the role it names.
 
-What passing means lives in `conformance/harness.py`, which the shippable
-runner uses too — two definitions of a passing case would drift, and the one
-an outside implementer runs is the one that has to be right.
-
-A case names a role, so it runs against each implementation of that role and
-the answers have to match; one that named a language could only test one. A
-stand-in for the standalone kit, so nothing here imports rsp.
+Passing is defined once, in `conformance/harness.py`, which the shippable kit
+runs too. A stand-in for that kit, so nothing here imports rsp.
 """
 
 from __future__ import annotations
@@ -18,14 +13,12 @@ from collections.abc import Callable
 import pytest
 from harness import check
 
-from plugins import REQUIRED, Implementation, for_role
+from plugins import REQUIRED, ROOT, Implementation, for_role
 
-ROOT = pathlib.Path(__file__).parent.parent
 CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
 
-# Resolved at collection, so a missing plugin is a visible skip per case
-# rather than a silently shorter run.
+# Installed or not, so a missing plugin is a visible skip per case, not a shorter run.
 RUNS = [
     (path, implementation)
     for path in CASES
@@ -45,9 +38,7 @@ def test_case(
     escaped: bool,
     record_property: Callable[[str, object], None],
 ) -> None:
-    """Both encodings, because JSON permits either: a plugin decoding
-    surrogate pairs wrong is off by two, invisibly, until content leaves the
-    BMP."""
+    """Both, as JSON permits either: bad surrogate-pair decoding shows only past the BMP."""
     path, implementation = run
     case = json.loads(path.read_text(encoding="utf-8"))
     # What makes the report a matrix rather than a list (conftest.py).

@@ -1,8 +1,7 @@
-"""Verdict composition.
+"""Verdict composition: the deciding layer.
 
-The deciding layer. rsp.process knows how a process ended, rsp.codec knows what
-it said, rsp.spans knows what to do with offsets — and none of them knows what
-should happen as a result. This does.
+The layers below report how a plugin ended, what it said, and where its spans
+fall. Only this one decides what happens as a result.
 """
 
 from __future__ import annotations
@@ -21,9 +20,7 @@ from rsp.spans import Severity, Span, redact, valid_span
 class Verdict(enum.StrEnum):
     """The four outcomes a plugin may return (V1).
 
-    StrEnum because these go on the wire. The ranking lives in a table rather
-    than in the values, because strictest-wins is a policy (D9) that should be
-    readable, not implied by which number someone assigned.
+    Ranked by `_STRICTNESS`, not by value, so strictest-wins (D9) reads as a table.
     """
 
     ALLOW = "ALLOW"
@@ -32,7 +29,7 @@ class Verdict(enum.StrEnum):
     BLOCK = "BLOCK"
 
 
-STRICTNESS = {Verdict.ALLOW: 0, Verdict.FLAG: 1, Verdict.REDACT: 2, Verdict.BLOCK: 3}
+_STRICTNESS = {Verdict.ALLOW: 0, Verdict.FLAG: 1, Verdict.REDACT: 2, Verdict.BLOCK: 3}
 
 
 class OnError(enum.StrEnum):
@@ -46,8 +43,8 @@ class OnError(enum.StrEnum):
 class ConfigError(Exception):
     """Raised at construction, never during evaluation.
 
-    Degrading quietly into an index nobody is guarding looks exactly like
-    success, so a misconfiguration stops the run while someone is watching.
+    An unguarded index looks exactly like a guarded one, so a misconfiguration
+    stops the run while someone is watching.
     """
 
 
@@ -64,9 +61,9 @@ class Plugin:
 class Result:
     """What the host acts on.
 
-    `content` is already redacted (S4): the host never sees a span. `reasons`
-    are for the operator's log, kept out of `provenance` because that is stored
-    on the node and a plugin's free text can quote what it matched (Q8).
+    `content` is already redacted, so the host never sees a span (S4). `reasons`
+    stay out of `provenance`, which is stored on the node, because a plugin's
+    free text can quote what it matched (Q8).
     """
 
     verdict: Verdict
@@ -80,11 +77,7 @@ class Result:
 
 
 def _verdict_of(payload: Mapping[str, Any]) -> Verdict | None:
-    """The declared verdict, or None if it is not one (V1).
-
-    isinstance before lookup: `["BLOCK"] in set(Verdict)` raises rather than
-    answering, and a plugin may return any JSON at all.
-    """
+    """The declared verdict, or None if it is not one (V1)."""
     declared = payload.get("verdict")
     if not isinstance(declared, str):
         return None
@@ -95,11 +88,10 @@ def _verdict_of(payload: Mapping[str, Any]) -> Verdict | None:
 
 
 def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Span] | None:
-    """Every span in a REDACT response, or None if any of it is unusable.
+    """Every span in a REDACT response, or None if any of it is unusable (S3, V3).
 
-    Per response rather than at redaction time, so a bad span is attributable
-    to the plugin that sent it and routed through that plugin's on_error. Also
-    enforces V3: a REDACT without spans or replacement is not a REDACT.
+    Checked per response, so a bad span is charged to the plugin that sent it and
+    routed through its on_error.
     """
     raw_spans = payload.get("spans")
     replacement = payload.get("replacement")
@@ -109,9 +101,7 @@ def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Sp
     if not isinstance(replacement, str) or not isinstance(severity, str):
         return None
     try:
-        # A lone surrogate is a valid str and valid JSON, and cannot be UTF-8.
-        # Checking the type is not checking that the value can be used.
-        replacement.encode("utf-8")
+        replacement.encode("utf-8")  # a lone surrogate is a str, and not UTF-8
     except UnicodeEncodeError:
         return None
 
@@ -127,7 +117,7 @@ def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Sp
             return None
         span = Span(start, end, kind, severity, replacement, order)
         if not valid_span(span, content):
-            return None  # S3: out of range, inverted, or cutting a character
+            return None  # S3
         spans.append(span)
     return spans
 
@@ -135,8 +125,8 @@ def _spans_of(payload: Mapping[str, Any], order: int, content: bytes) -> list[Sp
 class Runtime:
     """Dispatches a hook across plugins and composes one verdict.
 
-    Handshakes eagerly, so a plugin that cannot introduce itself fails at
-    construction rather than mid-ingest.
+    Handshakes at construction, so a plugin that cannot introduce itself fails
+    before ingest starts rather than in the middle.
     """
 
     def __init__(self, plugins: Sequence[Plugin]) -> None:
@@ -144,9 +134,7 @@ class Runtime:
         self.declarations: dict[str, Handshake] = {}
         for plugin in self.plugins:
             if plugin.name in self.declarations:
-                # Names key the declarations, so a duplicate silently gives one
-                # plugin another's capabilities — and a guard that never runs
-                # looks exactly like a guard that found nothing.
+                # Names key the declarations: a duplicate would take another's hooks.
                 raise ConfigError(f"{plugin.name}: configured twice")
             outcome, declaration = handshake(
                 plugin.command, timeout=plugin.timeout, max_output=plugin.max_output
@@ -156,17 +144,17 @@ class Runtime:
             self.declarations[plugin.name] = declaration
 
     def for_hook(self, hook: str) -> list[Plugin]:
-        """Only plugins that declared this hook (H3): one handed an undeclared
-        hook cannot refuse it, so its verdict is about a case it never planned
-        for.
-        """
+        """The plugins that declared this hook, and only those (H3)."""
         return [p for p in self.plugins if self.declarations[p.name].supports(hook)]
 
     def evaluate(
         self, hook: str, content: str, metadata: Mapping[str, Any] | None = None
     ) -> Result:
-        """Never raises (E2). Every failure becomes a verdict, and by E1 that
-        verdict is BLOCK unless that plugin's on_error says otherwise."""
+        """One verdict on `content` from every plugin that declared `hook`.
+
+        Never raises (E2): a failure is BLOCK unless that plugin's on_error says
+        otherwise (E1).
+        """
         request: dict[str, Any] = {"rsp_version": RSP_VERSION, "hook": hook, "content": content}
         if metadata:
             request["metadata"] = dict(metadata)
@@ -174,9 +162,7 @@ class Runtime:
         try:
             data = content.encode("utf-8")
         except UnicodeEncodeError:
-            # Not a plugin's fault — a host can read a lone surrogate out of a
-            # mis-encoded file — but no plugin can be asked about content that
-            # cannot go on the wire, so there is no trustworthy verdict (E3).
+            # A lone surrogate cannot go on the wire, so no plugin can judge it (E3).
             return Result(
                 Verdict.BLOCK,
                 content,
@@ -210,12 +196,8 @@ class Runtime:
             if said is Verdict.REDACT:
                 validated = _spans_of(reply.payload, order, data)
                 if validated is None:
-                    # A response the host cannot use is a plugin error (S3, V3).
-                    # Applying this plugin's other spans would let it report
-                    # nothing by reporting garbage, and the host cannot tell
-                    # which of its claims were sound. Judged before any of it is
-                    # kept: a response undone field by field keeps whichever
-                    # field the undoing forgets.
+                    # A response the host cannot use is a plugin error (S3, V3):
+                    # nothing says which of its claims were sound, so none is kept.
                     if self._failed(plugin, "unusable spans", reasons):
                         return self._blocked(content, types, severities, contributors, reasons)
                     continue
@@ -230,13 +212,11 @@ class Runtime:
             types.update(span.type for span in declared if span.type)
 
             if said is Verdict.BLOCK:
-                # Short-circuits: later verdicts about rejected content are
-                # unused, and running them invites a plugin to expect a call it
-                # never receives (D9).
+                # Short-circuit: later verdicts about rejected content go unused (D9).
                 reasons.append(f"{plugin.name}: BLOCK")
                 return self._blocked(content, types, severities, contributors, reasons)
 
-            if STRICTNESS[said] > STRICTNESS[verdict]:
+            if _STRICTNESS[said] > _STRICTNESS[verdict]:
                 verdict = said
 
         redacted, _ = redact(content, spans)  # every span was validated on arrival
@@ -248,11 +228,8 @@ class Runtime:
     def _failed(plugin: Plugin, detail: str, reasons: list[str]) -> bool:
         """Record a plugin failure and say whether it blocks the chunk.
 
-        on_error covers every failure of that plugin, not only process ones: an
-        unusable response is a failure as surely as a crash.
-
-        ALLOW and SKIP behave identically today — neither contributes a verdict
-        — and are kept apart because the intent differs.
+        on_error covers an unusable response as much as a crash. ALLOW and SKIP
+        behave alike today, and stay apart because the intent differs.
         """
         suffix = "" if plugin.on_error is OnError.BLOCK else f" (on_error={plugin.on_error})"
         reasons.append(f"{plugin.name}: {detail}{suffix}")
@@ -266,8 +243,7 @@ class Runtime:
         contributors: list[str],
         reasons: list[str],
     ) -> Result:
-        """Blocked content is returned unchanged: it is not being stored, and
-        redacting something nobody will see costs work and loses evidence."""
+        """Blocked content comes back as is: nothing stores it, and redacting it loses evidence."""
         return Result(
             Verdict.BLOCK,
             content,
@@ -276,13 +252,15 @@ class Runtime:
         )
 
     @staticmethod
-    def _provenance(verdict, types, severities, contributors) -> dict[str, Any]:
+    def _provenance(
+        verdict: Verdict, types: set[str], severities: set[str], contributors: list[str]
+    ) -> dict[str, Any]:
         """Types and severities, never matched bytes or offsets (Q8)."""
         provenance: dict[str, Any] = {"rsp.verdict": verdict.value}
         if types:
             provenance["rsp.types"] = sorted(types)
         if severities:
-            provenance["rsp.severity"] = max(severities, key=lambda s: Severity.of(s))
+            provenance["rsp.severity"] = max(severities, key=Severity.of)
         if contributors:
             provenance["rsp.plugins"] = contributors
         return provenance

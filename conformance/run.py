@@ -4,14 +4,9 @@
     python conformance/run.py -- my-plugin --flag        # which role am I?
     python conformance/run.py --role gitleaks -- my-plugin
 
-Standard library only, and no import of the reference runtime: a plugin author
-should be able to copy `conformance/` and `plugins/` next to their plugin and
-find out whether it conforms, without installing the implementation whose
-behaviour is not the thing being tested.
-
-Host cases are not run here. A host is a library rather than a process, so the
-runner for those belongs to whoever wrote the host; `conformance/host/` holds
-the cases and `conformance/cases/README.md` describes the shape.
+Standard library only, and no import of `rsp`: copy `conformance/` and
+`plugins/` next to a plugin and run it. Host cases are not run here — a host is
+a library, so their runner belongs to the host (`conformance/cases/README.md`).
 """
 
 from __future__ import annotations
@@ -35,13 +30,11 @@ def roles(cases: list[tuple[str, dict[str, Any]]]) -> dict[str, int]:
 
 
 def run_role(cases: list[tuple[str, dict[str, Any]]], command: list[str]) -> tuple[int, list[str]]:
-    """Every case for one role. Returns how many failed, and the clauses the
-    plugin settled by passing."""
+    """Every case for one role: how many failed, and the clauses passing settled."""
     failures = 0
     settled: dict[str, bool] = collections.defaultdict(bool)
     for name, case in cases:
-        # Both encodings, because JSON permits either and a plugin can pass
-        # one and fail the other.
+        # JSON permits both encodings, and a plugin can pass one and fail the other.
         outcomes = {escaped: check(case, command, escaped=escaped) for escaped in (False, True)}
         passed = all(outcome.passed for outcome in outcomes.values())
         failures += not passed
@@ -71,17 +64,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{role}\t{count} cases")
         return 0
 
-    # Only the leading separator is ours. A plugin whose own command needs a
-    # `--` would otherwise be run as a different command.
+    # Only the leading `--` is ours; the plugin's command may need one of its own.
     command = arguments.command[1:] if arguments.command[:1] == ["--"] else arguments.command
     if not command:
         parser.error("give the plugin command after --")
     if arguments.role and arguments.role not in available:
         parser.error(f"no cases for role {arguments.role!r}; try {', '.join(available)}")
 
-    # A plugin conforms to a role rather than in general, so without one the
-    # kit reports every role and the author reads off which they are. Failures
-    # against a role a plugin never claimed are information, not a verdict.
+    # Without --role, try every role: failing one a plugin never claimed is not a verdict.
     wanted = [arguments.role] if arguments.role else list(available)
     passed_a_role = False
     for role in wanted:

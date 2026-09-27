@@ -1,15 +1,14 @@
-"""Subprocess lifecycle.
+"""Subprocess lifecycle: start a plugin, feed it, drain it, reap it.
 
-Start a plugin, feed it, drain it, reap it. Bytes in, bytes out, plus a
-classification of how the process ended. Knows nothing about JSON, and nothing
-about what a failure should mean: E1's translation belongs to rsp.runtime.
-
-Spawn-per-call is the v0.1 process model (Q6).
+Bytes in, bytes out, and how the process ended. Knows no JSON, and not what a
+failure means — that is rsp.runtime's job (E1). One process per call (Q6).
 """
 
 from __future__ import annotations
 
+import contextlib
 import enum
+import io
 import os
 import signal
 import subprocess
@@ -18,16 +17,16 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-DEFAULT_TIMEOUT = 5.0  # seconds, per call, startup included (E4)
-DEFAULT_MAX_OUTPUT = 1 << 20  # 1 MiB of stdout; exceeding it is an error (E1)
+DEFAULT_TIMEOUT = 5.0  # seconds per call, startup included (E4)
+DEFAULT_MAX_OUTPUT = 1 << 20  # bytes of stdout; more is an error (E1)
 _CHUNK = 65536
 
 
 class Outcome(enum.StrEnum):
-    """How a call ended. Everything but OK is an error under E1 and E3.
+    """How a call ended. Everything but OK is an error (E1, E3).
 
-    One enum for both process and content failures: a caller asking "may I
-    trust this response?" does not care which half went wrong.
+    One enum for process and content failures alike: the caller only asks
+    whether the response can be trusted.
     """
 
     OK = "OK"
@@ -56,19 +55,14 @@ class Invocation:
 
 
 def _kill_group(pgid: int) -> None:
-    """Kill the plugin and anything it spawned.
+    """Kill the plugin and everything it spawned.
 
-    A plugin is usually a wrapper, so killing only the direct child leaves the
-    tool it started holding the pipe — which is why the child gets its own
-    session at spawn.
-
-    Takes the group id, not the process: after the child is reaped
-    os.getpgid() raises, while the group may still have members.
+    A wrapper's tool can outlive it holding the pipe, hence a session of its own
+    at spawn. Takes the group id because os.getpgid() fails once the child is
+    reaped, while the group may still have members.
     """
-    try:
+    with contextlib.suppress(OSError):
         os.killpg(pgid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError, OSError):
-        pass
 
 
 def invoke(
@@ -81,23 +75,18 @@ def invoke(
     """Run one plugin call. Never raises: every failure is an Outcome (E2)."""
     started = time.monotonic()
     try:
-        # A list, never a string: no shell, so nothing in the config can be
-        # interpolated into one.
         proc = subprocess.Popen(
-            list(command),
+            list(command),  # argv, never a shell
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
     except (OSError, ValueError, TypeError, IndexError) as exc:
-        # OSError covers a missing binary or a bad permission, but `command`
-        # comes from user config: an empty list raises IndexError and a null
-        # entry raises TypeError. This function never raises (E2), so a
-        # misconfigured plugin has to leave here as a verdict, not a traceback.
+        # An empty argv raises IndexError and a null entry TypeError (E2).
         return Invocation(Outcome.UNSPAWNABLE, b"", str(exc).encode(), None, 0.0)
 
-    pgid = proc.pid  # it leads its own group; record it before anything exits
+    pgid = proc.pid  # its own group leader; recorded before anything exits
 
     out, err = bytearray(), bytearray()
     oversize = threading.Event()
@@ -109,11 +98,11 @@ def invoke(
             proc.stdin.write(payload)
             proc.stdin.close()
         except OSError:
-            # It stopped reading before it had the whole request, so anything
-            # it printed is a verdict about content it never saw.
-            undelivered.set()
+            undelivered.set()  # anything it prints is about content it never saw
 
-    def drain(stream, sink: bytearray, cap: int, *, protocol_channel: bool) -> None:
+    def drain(
+        stream: io.BufferedReader, sink: bytearray, cap: int, *, protocol_channel: bool
+    ) -> None:
         try:
             while chunk := stream.read1(_CHUNK):
                 room = cap - len(sink)
@@ -122,9 +111,7 @@ def invoke(
                     continue
                 sink += chunk[:room]
                 if not protocol_channel:
-                    # A talkative plugin is not a failing one (E3). Keep
-                    # draining so it does not block on a full pipe, and throw
-                    # the excess away.
+                    # Noisy is not failing (E3): discard the excess, keep draining.
                     while stream.read1(_CHUNK):
                         pass
                     return
@@ -132,9 +119,7 @@ def invoke(
                 _kill_group(pgid)
                 return
         except OSError:
-            # Losing bytes on stdout means an incomplete response; on stderr it
-            # costs only diagnostics, which is no reason to reject content (E3).
-            if protocol_channel:
+            if protocol_channel:  # lost stderr costs only diagnostics (E3)
                 truncated.set()
 
     workers = [
@@ -157,32 +142,24 @@ def invoke(
 
     timed_out = False
     try:
-        # Measured from `started`, not from here: the spawn itself costs a few
-        # milliseconds, and E4 bounds the wait from the moment the host starts
-        # the plugin. The plugin's own startup runs inside this window, which
-        # is why it spends the budget rather than extending it.
+        # E4 bounds the call from spawn, so the plugin's startup spends the budget.
         proc.wait(timeout=max(0.0, timeout - (time.monotonic() - started)))
     except subprocess.TimeoutExpired:
         timed_out = True
         _kill_group(pgid)
-        proc.wait()  # reap, so a timeout leaves no zombie
+        proc.wait()  # reap: no zombie
 
-    # Also after a clean exit: a wrapper can return zero with the tool it
-    # started still holding the pipe. One call, one group, and the group ends
-    # when the call does (Q6).
+    # Also after a clean exit: a wrapper can exit zero with its tool still holding the pipe.
     _kill_group(pgid)
 
     for worker in workers:
         worker.join(timeout=1.0)
 
     if not any(worker.is_alive() for worker in workers):
-        # Closing a file a stalled worker is still reading is the worse bug, so
-        # only close when every worker has finished.
+        # Closing a stream a stalled worker still reads is the worse bug.
         for stream in (proc.stdin, proc.stdout, proc.stderr):
-            try:
+            with contextlib.suppress(OSError):
                 stream.close()
-            except OSError:
-                pass
 
     if oversize.is_set():
         outcome = Outcome.OVERSIZE

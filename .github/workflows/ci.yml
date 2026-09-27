@@ -7,17 +7,11 @@ on:
 
 permissions:
   contents: read
-# uv hardlinks packages from its cache, and nltk — which the sentence splitter
-# pulls in — refuses to open a file with more than one link (CWE-59). Copies
-# cost a second and make the venv look like a normal install.
+# nltk, which the sentence splitter pulls in, refuses the hardlinks uv makes by default.
 env:
   UV_LINK_MODE: copy
 
-# Actions are pinned to commit SHAs: a tag is a mutable pointer, and whoever
-# can move it can run code on this runner with the job's token. Updates are
-# manual and infrequent by choice — three actions, checked when something
-# prompts it. If that becomes tedious, add .github/dependabot.yml rather than
-# going back to floating tags.
+# Actions are pinned to commit SHAs: whoever can move a tag can run code with this job's token.
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -29,22 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          # Nothing here pushes, so the token does not need to survive
-          # checkout — left in .git/config it can ride along in an artifact.
+          # Nothing pushes, so the token is not left behind in .git/config.
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
         with:
           enable-cache: true
-      # --frozen fails when uv.lock is out of date with pyproject.toml, which
-      # nobody notices until someone else's install differs from theirs.
+      # --frozen fails when uv.lock is out of date with pyproject.toml.
       - run: uv sync --frozen
-      - run: uv run ruff check rsp/ tests/ plugins/
-      - run: uv run ruff format --check rsp/ tests/ plugins/
+      - run: uv run ruff check rsp/ tests/ plugins/ conformance/
+      - run: uv run ruff format --check rsp/ tests/ plugins/ conformance/
 
-      # The workflows are code too, and this repository has a rule about what
-      # they may do (AGENTS.md). actionlint catches expression and matrix
-      # mistakes; zizmor is the security-focused one — unpinned actions,
-      # over-broad permissions, untrusted input reaching a run block.
+      # actionlint for expression and matrix mistakes, zizmor for workflow security.
       - run: uvx --from actionlint-py==1.7.12.24 actionlint .github/workflows/*.yml
       - run: uvx zizmor==1.9.0 --persona=regular .github/workflows/
 
@@ -52,14 +41,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor is 3.11 (3.10 reaches end of life 2026-10-31) and the
-        # ceiling is whatever is current, because a version nobody runs here is
-        # a version this promise is not being kept for.
+        # From the floor in pyproject.toml to whatever is current.
         python: ["3.11", "3.12", "3.13", "3.14"]
         os: [ubuntu-latest]
-        # One macOS job: the runtime rests on POSIX process semantics
-        # (start_new_session, killpg) and on pipe buffering, which differs —
-        # 64 KiB on Linux, 16 KiB on macOS.
+        # One macOS job: process groups and pipe buffers (16 KiB, not 64) differ from Linux.
         include:
           - python: "3.12"
             os: macos-latest
@@ -67,20 +52,16 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          # Nothing here pushes, so the token does not need to survive
-          # checkout — left in .git/config it can ride along in an artifact.
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
       - run: uv sync --frozen
-      # Unit tests, the conformance cases, and the spec/case drift checks are
-      # all pytest, so there is one thing to run here and one to run locally.
+      # Unit tests, conformance cases and drift checks are all pytest.
       - run: uv run pytest tests/ -q --cov --cov-report=xml
 
-      # One upload, not five: the matrix exists to catch platform and version
-      # differences, and coverage does not differ between them.
+      # One upload: coverage does not differ across the matrix.
       - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

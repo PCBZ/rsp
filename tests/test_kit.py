@@ -1,10 +1,7 @@
 """The kit, run the way somebody who does not have this repository would.
 
-`conformance/` plus a plugin, in a directory with no `rsp/` in it and nothing
-installed. That is the condition the kit exists to meet: a plugin author
-checks their plugin against the protocol, not against our implementation of
-it, and cannot be asked to install the thing whose behaviour is not under
-test.
+`conformance/` plus a plugin, with no `rsp/` and nothing installed: an author
+tests a plugin against the protocol, not against our implementation of it.
 """
 
 from __future__ import annotations
@@ -16,7 +13,18 @@ import sys
 
 import pytest
 
-ROOT = pathlib.Path(__file__).parent.parent
+from plugins import ROOT
+
+MISBEHAVING = {
+    "output that is not UTF-8": (
+        "import sys\nsys.stdin.read()\nsys.stdout.buffer.write(b'\\xff\\xfe not text\\n')\n",
+        "not UTF-8",
+    ),
+    "valid JSON that is not an object": (
+        "import sys\nsys.stdin.read()\nprint('null')\n",
+        "expected a JSON object",
+    ),
+}
 
 
 @pytest.fixture
@@ -35,11 +43,8 @@ def run(where: pathlib.Path, *arguments: str) -> subprocess.CompletedProcess[str
         capture_output=True,
         text=True,
         check=False,
-        # PYTHONPATH unset: an import of `rsp` would have to find it, and it
-        # is not there to find.
-        # An ASCII locale, with the coercion that would quietly undo it
-        # switched off (PEP 538): the cases carry 密钥, and a harness that let
-        # the locale choose would fail to encode the request at all.
+        # No PYTHONPATH, so `rsp` cannot be found. An ASCII locale, coercion off
+        # (PEP 538): the cases carry 密钥, which a locale-bound harness cannot encode.
         env={
             "PATH": "/usr/bin:/bin:/usr/local/bin",
             "HOME": str(where),
@@ -84,8 +89,7 @@ def test_an_unknown_role_is_refused_and_names_the_real_ones(elsewhere: pathlib.P
 
 
 def test_the_roles_can_be_listed_without_a_plugin(elsewhere: pathlib.Path) -> None:
-    """The first question is which cases apply, and answering it should not
-    require guessing the answer first."""
+    """Which cases apply is the first question, and asking should not need the answer."""
     done = run(elsewhere, "--list-roles")
 
     assert done.returncode == 0
@@ -93,10 +97,7 @@ def test_the_roles_can_be_listed_without_a_plugin(elsewhere: pathlib.Path) -> No
 
 
 def test_without_a_role_every_role_is_tried(elsewhere: pathlib.Path) -> None:
-    """A plugin conforms to a role rather than in general. Asked without one,
-    the kit reports each — the reference plugin answers markers, so it passes
-    the echo cases and fails the ones written for a gitleaks wrapper, which is
-    how its author learns which it is."""
+    """A plugin conforms to a role, not in general; reporting each tells its author which."""
     done = run(elsewhere, "--", sys.executable, "plugins/rsp-echo/main.py")
 
     assert done.returncode == 0, "passing one role in full is conformance to that role"
@@ -104,23 +105,9 @@ def test_without_a_role_every_role_is_tried(elsewhere: pathlib.Path) -> None:
     assert "cases for gitleaks" in done.stderr
 
 
-MISBEHAVING = {
-    "output that is not UTF-8": (
-        "import sys\nsys.stdin.read()\nsys.stdout.buffer.write(b'\\xff\\xfe not text\\n')\n",
-        "not UTF-8",
-    ),
-    "valid JSON that is not an object": (
-        "import sys\nsys.stdin.read()\nprint('null')\n",
-        "expected a JSON object",
-    ),
-}
-
-
 @pytest.mark.parametrize(("source", "expected"), MISBEHAVING.values(), ids=list(MISBEHAVING))
 def test_a_plugin_cannot_stop_the_run(elsewhere: pathlib.Path, source: str, expected: str) -> None:
-    """The kit exists to test plugins that misbehave, so misbehaviour has to
-    fail a case rather than end the run — an exception out of the harness
-    takes the remaining cases with it."""
+    """Misbehaviour fails a case; an exception out of the harness would take the rest with it."""
     (elsewhere / "plugins" / "rude.py").write_text(source, encoding="utf-8")
 
     done = run(elsewhere, "--role", "echo", "--", sys.executable, "plugins/rude.py")
@@ -131,8 +118,7 @@ def test_a_plugin_cannot_stop_the_run(elsewhere: pathlib.Path, source: str, expe
 
 
 def test_the_plugin_keeps_its_own_separator(elsewhere: pathlib.Path) -> None:
-    """Only the leading `--` is the runner's. A command that needs its own
-    would otherwise be run as a different command."""
+    """Only the leading `--` is the runner's."""
     (elsewhere / "plugins" / "needs.py").write_text(
         "import json, sys\n"
         "assert sys.argv[1:] == ['--', 'inner'], sys.argv\n"
@@ -143,9 +129,8 @@ def test_the_plugin_keeps_its_own_separator(elsewhere: pathlib.Path) -> None:
 
     done = run(elsewhere, "--role", "echo", "--", sys.executable, "plugins/needs.py", "--", "inner")
 
-    # Positive evidence that it ran: it asserts its own argv and would exit
-    # non-zero otherwise, so the cases it fails have to fail on the verdict it
-    # gave. "no `exited 1`" would also hold for a plugin never started.
+    # Positive evidence: it asserts its argv, so the cases it fails fail on its
+    # verdict. "no `exited 1`" would also hold for a plugin never started.
     assert done.returncode == 1, "cases ran and some failed, rather than an argument error"
     assert "got {'verdict': 'ALLOW'}" in done.stdout, done.stdout + done.stderr
     assert "2/10 cases for echo" in done.stderr, "the two an always-allow plugin passes"

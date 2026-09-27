@@ -27,4 +27,4 @@ and sets `RSP_PLUGIN_GITLEAKS_GO` — see `conformance.json`.
 
 Nothing converts here: a Go string is a byte slice, so `content[start:end]`
 already means what S1 says. The coordinate quirks that do need care are
-gitleaks' own, and `gitleaks.go` documents them where the arithmetic is.
+gitleaks' own, and are the notes in `../gitleaks-offsets.json`.

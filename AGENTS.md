@@ -15,7 +15,8 @@ Each layer knows strictly less than the one above it, and the imports go one way
 - `rsp/runtime.py` — the deciding layer: dispatch, compose, fail closed.
 - `rsp/guards.py` — LlamaIndex adapter. Knows no transport.
 - `rsp/config.py` — plugins from a file. Not in the spec; a host may ignore it.
-- `rsp/cli.py` — `rsp-validate`.
+- `rsp/ingest.py` — a directory through the LlamaIndex pipeline, for the demo.
+- `rsp/cli.py` — `rsp validate` and `rsp ingest`.
 - `plugins/*` — untrusted third-party code. Detection lives only here.
 
 A change that makes a lower layer import a higher one is a design change, not a
@@ -25,8 +26,8 @@ convenience.
 
 ```bash
 uv sync
-uv run ruff check rsp/
-uv run ruff format --check rsp/
+uv run ruff check rsp/ tests/ plugins/ conformance/
+uv run ruff format --check rsp/ tests/ plugins/ conformance/
 uv run pytest
 ```
 
@@ -50,7 +51,7 @@ uv run pytest
 
 ## Conventions
 
-- Call sites are written before the code they call. A file whose docstring says it does not run imports a module that doesn't exist yet — don't stub it, make it run, or test it.
+- Work top-down: write the call site first, then the code it calls. A file may import a module that does not exist yet — don't stub it, make it run, or test it. This is about the order you write in, not the order things sit in a file.
 - Every MUST in `SPEC.md` gets a conformance fixture the same day. Fixtures assert protocol behaviour, not implementation.
 - Comments cite decisions by number: `# span application is the runtime's job (D6)`.
 - Never an issue number. `D6` and `S1` resolve inside a clone; `#13` resolves
@@ -58,6 +59,27 @@ uv run pytest
   reason or cite the clause — a test enforces this.
 - `ruff` owns formatting and annotation style.
 - One issue per PR, titled `#N Short summary`. Out-of-scope findings become issues, not scope creep.
+
+## Style
+
+Written down so that a style finding cites a rule rather than a preference.
+`ruff` enforces what it can (`pyproject.toml`); the rest is for reviewers.
+
+- A comment says why, never what. If the code already says it, delete the comment.
+- One line where one will do. Cite the clause instead of restating it: `(D6)`,
+  `(S3, V3)`, `§4`.
+- A reason lives in one place. Protocol rationale belongs to `SPEC.md`; code
+  cites the clause. The same reason is not written in two files.
+- No history. Not what the code used to do, not the bug that prompted a check —
+  `git log` keeps that. Keep the reason that still holds.
+- Docstrings: a one-line summary. A body only for what the caller cannot learn
+  from the signature, after a blank line, with the closing `"""` on its own line.
+  A test's name says what holds; its docstring, if any, says why.
+- In `rsp/`, a name used only inside its module starts with `_`: no underscore
+  means public API. A caught exception is `exc`.
+- Constants come straight after the imports. A helper sits above its first
+  caller; `main` comes last.
+- Every parameter and return in `rsp/` is annotated.
 
 ## Reviewers
 

@@ -1,5 +1,4 @@
-// Package main wraps the gitleaks binary, through the same two interfaces as
-// the TypeScript plugin: the `gitleaks stdin` command and its report's fields.
+// Package main wraps gitleaks using only `gitleaks stdin` and its report.
 package main
 
 import (
@@ -9,8 +8,7 @@ import (
 	"strings"
 )
 
-// Span is a range to mask, in byte offsets (S1). A Go string is a byte slice,
-// so content[start:end] already means that: nothing converts.
+// Span is a range to mask, in byte offsets (S1), which is what a Go string indexes.
 type Span struct {
 	Start int    `json:"start"`
 	End   int    `json:"end"`
@@ -37,13 +35,8 @@ func binary() string {
 	return "gitleaks"
 }
 
-// toSpans converts gitleaks' positions into byte offsets.
-//
-// Its columns count from the newline byte ending the previous line, not from
-// the line's first byte, so only line one matches the 1-based column anyone
-// assumes. EndColumn belongs to EndLine, which differs whenever a finding
-// spans lines. Anything that does not slice Match back out is dropped, and the
-// caller turns a dropped finding into a BLOCK.
+// toSpans converts gitleaks' positions to byte offsets, dropping a finding it
+// cannot place. The quirks it corrects are the notes in gitleaks-offsets.json.
 func toSpans(findings []Finding, content string) []Span {
 	origins := columnOrigins(content)
 	spans := make([]Span, 0, len(findings))
@@ -55,8 +48,6 @@ func toSpans(findings []Finding, content string) []Span {
 			continue
 		}
 		span := Span{Start: from + f.StartColumn - 1, End: to + f.EndColumn, Type: f.RuleID}
-		// What S3 will check, checked here: an adapter should not hand the host
-		// a span it is going to reject.
 		if !usable(span, content) || content[span.Start:span.End] != f.Match {
 			continue
 		}
@@ -65,8 +56,7 @@ func toSpans(findings []Finding, content string) []Span {
 	return spans
 }
 
-// usable reports whether a span is in range, non-empty, and on character
-// boundaries at both ends.
+// usable reports whether a span is in range, non-empty, and on char boundaries.
 func usable(span Span, content string) bool {
 	boundary := func(at int) bool { return at == len(content) || content[at]&0xC0 != 0x80 }
 	return span.Start >= 0 && span.End <= len(content) && span.End > span.Start &&
@@ -95,9 +85,8 @@ func columnOrigins(content string) []int {
 	return starts
 }
 
-// run executes the binary once. The status is why this exists: a gitleaks that
-// could not run prints nothing, exactly like a clean chunk, so ignoring it
-// would turn every failure into an ALLOW (E1, D3).
+// run executes the binary once. A failed run prints nothing, like a clean
+// chunk, so only the status tells them apart (E1, D3).
 func run(args []string, input string) (string, error) {
 	cmd := exec.Command(binary(), args...)
 	cmd.Stdin = strings.NewReader(input)
@@ -111,12 +100,10 @@ func run(args []string, input string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// version is carried in the declaration so a cache key includes it (D4).
 func version() (string, error) {
 	return run([]string{"version"}, "")
 }
 
-// scan returns the findings for one chunk.
 func scan(content string) ([]Finding, error) {
 	// "-" is gitleaks' own spelling of stdout; /dev/stdout fails its writability
 	// pre-check. --no-banner keeps stdout to the report alone.

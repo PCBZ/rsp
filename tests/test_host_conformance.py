@@ -1,9 +1,7 @@
 """Host cases: a plugin's answer goes in, the host's behaviour is asserted.
 
-The other direction from `test_conformance.py`, and the one that needs a
-runner per host rather than per plugin — a host is a library, not a process,
-so a kit cannot spawn it. What a kit ships is the cases and the plugin that
-follows them; this file is what points them at `rsp`.
+A host is a library, not a process, so the kit ships cases and a replay plugin
+and each host brings a runner; this is `rsp`'s.
 """
 
 from __future__ import annotations
@@ -16,19 +14,14 @@ from typing import Any
 
 import pytest
 
+from plugins import ROOT
 from rsp.process import DEFAULT_MAX_OUTPUT
 from rsp.runtime import OnError, Plugin, Runtime, Verdict
 
-ROOT = pathlib.Path(__file__).parent.parent
 CASES = sorted((ROOT / "conformance" / "host").glob("*.json"))
 REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
-
-
-# What rsp-replay knows how to do. A script it does not understand exits
-# non-zero, which a host reads as a crash — so an unchecked typo would pass
-# every case about crashing. Checked here rather than there for the reason
-# `rsp validate` exists: the side that starts nothing is the side that can
-# report.
+# What rsp-replay understands. It crashes on anything else, so a typo would pass
+# every crash case; checked here because the side that starts nothing can report.
 BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw", "flood"})
 NEEDS_REPLY = frozenset({"noisy"})
 
@@ -45,8 +38,7 @@ def _checked(script: dict[str, Any], where: str) -> dict[str, Any]:
 
 
 def _plugins(case: dict[str, Any], tmp_path: pathlib.Path) -> list[Plugin]:
-    """One plugin per script. Composition clauses need more than one, and the
-    order here is the configured order S6 breaks ties by."""
+    """One plugin per script, in the configured order S6 breaks ties by."""
     declared = case.get("plugins") or [case["plugin"]]
     declared = [_checked(script, f"plugins[{at}]") for at, script in enumerate(declared)]
     plugins = []
@@ -95,8 +87,7 @@ def test_host_case(
         assert result.content == expected["content"]
 
     if "timeout" in case:
-        # Otherwise a host with its own longer bound passes a case about the
-        # configured one: the verdict would be the same, five seconds later.
+        # Else a host with its own longer bound passes: same verdict, five seconds later.
         assert elapsed < case["timeout"] * 4, f"took {elapsed:.1f}s for a {case['timeout']}s bound"
     if wanted := expected.get("reason_contains"):
         # The operator's half of V4: a reason the plugin gave has to arrive.
@@ -109,6 +100,5 @@ def test_host_case(
     if expected.get("hooks_called") is not None:
         assert [entry["hook"] for entry in asked] == expected["hooks_called"]
     if expected.get("every_plugin_saw_the_original"):
-        # S5: a scripted plugin answers the same whatever it is shown, so the
-        # only way to ask what it was shown is to have it write that down.
+        # S5: a scripted plugin answers regardless of input, so it records what it was shown.
         assert [entry["content"] for entry in asked] == [request["content"]] * len(asked)

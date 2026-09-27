@@ -1,11 +1,6 @@
 # yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
-#
-# The standards themselves live in AGENTS.md, which CodeRabbit detects
-# automatically (no filePatterns needed) and coding agents read too.
-#
-# Path instructions below are a targeted supplement, per the official guidance —
-# only what is specific to a path and cannot be inferred from the code. Add more
-# once a real review misses something, not before.
+# The standards live in AGENTS.md, which CodeRabbit reads on its own. Path
+# instructions add only what is specific to a path; add one when a review misses it.
 
 language: 'en-US'
 
@@ -35,9 +30,7 @@ reviews:
 
     - path: 'rsp/guards.py'
       instructions: >-
-        Under 80 lines of code. This file deliberately imports rsp.runtime, which
-        does not exist yet — do not suggest stubbing it, making it runnable, or
-        adding tests for it.
+        Under 80 lines of code and no detection logic.
 
     - path: '{plugins,examples}/**'
       instructions: >-
@@ -87,9 +80,7 @@ reviews:
       enabled: false
 
   pre_merge_checks:
-    # AGENTS.md says docstring wording is not review material; a coverage
-    # threshold contradicts that, and it counts overridden methods like
-    # __call__ and model_post_init against us.
+    # A coverage threshold asks for more docstrings; AGENTS.md's Style asks for fewer.
     docstrings:
       mode: 'off'
 

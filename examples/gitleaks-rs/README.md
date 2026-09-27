@@ -25,9 +25,9 @@ Two things this language makes explicit that the others hide:
 
 A byte offset that lands inside a character **panics** here, where Go quietly
 produces mojibake, and so does arithmetic that overflows — where Go wraps and
-JavaScript loses precision, both of which the checks downstream absorb. So `usable` is not defensive; it is what stands between a
-malformed report and a plugin that dies instead of answering. Rust says out
-loud what S3 is for.
+JavaScript loses precision, both of which the checks downstream absorb. So
+`usable` is not defensive; it is what stands between a malformed report and a
+plugin that dies instead of answering. Rust says out loud what S3 is for.
 
 Nothing pumps a child's stdin for you. Go's `cmd.Stdin` and Node's streams
 both do it on something other than the calling thread, so neither can deadlock
