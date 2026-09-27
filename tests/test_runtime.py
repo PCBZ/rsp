@@ -79,26 +79,35 @@ def test_partial_delivery_is_not_ok() -> None:
     assert result.duration < 5.0
 
 
+def _reaped(pid: int, within: float = 3.0) -> bool:
+    """Waited for rather than sampled once: a signal takes time to arrive."""
+    deadline = time.monotonic() + within
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except (ProcessLookupError, PermissionError):
+            return True
+        time.sleep(0.05)
+    return False
+
+
 def test_timeout_kills_the_whole_process_group() -> None:
     """A plugin is usually a wrapper. Killing only the child orphans the tool."""
+    # Long enough that nothing else can account for the grandchild's death: at
+    # thirty seconds it outlives a one-second timeout and dies on its own while
+    # a host that killed nothing was still waiting on its parent.
     spawner = script(
         "import subprocess, sys, time\n"
-        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)'])\n"
         "print(child.pid, flush=True)\n"
-        "time.sleep(30)\n"
+        "time.sleep(600)\n"
     )
     result = invoke(spawner, b"{}", timeout=1.0)
     assert result.outcome is Outcome.TIMEOUT
+    assert result.duration < 5.0  # returned on the kill, not on the sleep
 
     grandchild = int(result.stdout.split()[0])
-    deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
-        try:
-            os.kill(grandchild, 0)
-        except (ProcessLookupError, PermissionError):
-            return
-        time.sleep(0.05)
-    pytest.fail(f"grandchild {grandchild} survived the timeout")
+    assert _reaped(grandchild), f"grandchild {grandchild} survived the timeout"
 
 
 def _child_count() -> int:
@@ -119,22 +128,14 @@ def test_descendants_die_even_when_the_wrapper_exits_cleanly() -> None:
     """A wrapper that returns 0 can leave its tool running and holding the pipe."""
     spawner = script(
         "import subprocess, sys\n"
-        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)'])\n"
         "print(child.pid, flush=True)\n"
     )
-    started = time.monotonic()
     result = invoke(spawner, b"{}", timeout=10.0)
     assert result.duration < 5.0  # did not wait on the grandchild's pipe
 
     grandchild = int(result.stdout.split()[0])
-    deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
-        try:
-            os.kill(grandchild, 0)
-        except (ProcessLookupError, PermissionError):
-            return
-        time.sleep(0.05)
-    pytest.fail(f"grandchild {grandchild} outlived the call ({time.monotonic() - started:.1f}s)")
+    assert _reaped(grandchild), f"grandchild {grandchild} outlived the call"
 
 
 class _FailingStream:
