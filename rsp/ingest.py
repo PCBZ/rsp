@@ -58,9 +58,15 @@ def documents(directory: pathlib.Path) -> list[Any]:
     ]
 
 
-@cache
 def _newlines(source: str) -> tuple[int, ...]:
-    """Where the line breaks are in a file on disk.
+    """Where the line breaks are in a file on disk, read once per version of it."""
+    stat = pathlib.Path(source).stat()
+    return _newlines_as_of(source, stat.st_mtime_ns, stat.st_size)
+
+
+@cache
+def _newlines_as_of(source: str, mtime_ns: int, size: int) -> tuple[int, ...]:
+    """Keyed on when the file was written, so a rewritten one is read again.
 
     Offsets and not the text: a cache of contents would hold every scanned
     secret for as long as the process lives.
@@ -83,7 +89,10 @@ def _lines_of(node: BaseNode) -> str:
         return "?"
     # From the offsets, not the content: a redacted node's text has been rewritten.
     newlines = _newlines(source)
-    return f"{bisect_left(newlines, start) + 1}-{bisect_left(newlines, end) + 1}"
+    # end is exclusive, so the last line is the one holding its last character.
+    # Taken from end itself, a chunk ending on a newline reaches the empty line
+    # after it; below start, an empty chunk ends before it begins.
+    return f"{bisect_left(newlines, start) + 1}-{bisect_left(newlines, max(start, end - 1)) + 1}"
 
 
 def _finding(verdict: str, provenance: dict[str, Any], node: BaseNode) -> Finding:

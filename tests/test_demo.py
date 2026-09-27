@@ -183,7 +183,7 @@ def test_the_line_range_reads_each_source_once(monkeypatch: pytest.MonkeyPatch) 
     from rsp import ingest as module
 
     source = DOCS / min(p.name for p in DOCS.iterdir() if p.is_file())
-    module._newlines.cache_clear()
+    module._newlines_as_of.cache_clear()
     reads = 0
     original = pathlib.Path.read_text
 
@@ -200,3 +200,46 @@ def test_the_line_range_reads_each_source_once(monkeypatch: pytest.MonkeyPatch) 
         module._lines_of(node)
 
     assert reads == 1, f"read the source {reads} times for three findings"
+
+
+@pytest.mark.parametrize(
+    ("text", "span", "want"),
+    [
+        ("hello\n", (0, 6), "1-1"),
+        ("a\nb\nc\n", (0, 6), "1-3"),
+        ("hello\nworld", (6, 11), "2-2"),
+        ("hello\n", (6, 6), "2-2"),
+    ],
+    ids=["ends on a newline", "three lines", "the second line", "an empty chunk"],
+)
+def test_the_last_line_holds_the_chunk_s_last_character(
+    tmp_path: pathlib.Path, text: str, span: tuple[int, int], want: str
+) -> None:
+    """An exclusive end read as a position names the line after the one it ends."""
+    from llama_index.core.schema import TextNode
+
+    from rsp.ingest import _lines_of
+
+    source = tmp_path / "doc.md"
+    source.write_text(text, encoding="utf-8")
+    node = TextNode(text="x", metadata={"file_path": str(source)})
+    node.start_char_idx, node.end_char_idx = span
+
+    assert _lines_of(node) == want
+
+
+def test_a_rewritten_source_is_read_again(tmp_path: pathlib.Path) -> None:
+    """Offsets cached under a path alone outlive the file they came from."""
+    from llama_index.core.schema import TextNode
+
+    from rsp.ingest import _lines_of
+
+    source = tmp_path / "doc.md"
+    node = TextNode(text="x", metadata={"file_path": str(source)})
+    node.start_char_idx, node.end_char_idx = 0, 6
+
+    source.write_text("hello\n", encoding="utf-8")
+    assert _lines_of(node) == "1-1"
+
+    source.write_text("a\nb\nc\n", encoding="utf-8")
+    assert _lines_of(node) == "1-3"
