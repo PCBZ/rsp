@@ -3,7 +3,8 @@
 An RSP plugin in Rust: wraps the unmodified
 [gitleaks](https://github.com/gitleaks/gitleaks) binary.
 
-The third adapter over the same tool, after `examples/gitleaks-{ts,go}`. Two
+The third adapter over the same tool, after `examples/gitleaks-{ts,go}` and
+before `examples/gitleaks-py`. Two
 of anything is a coincidence; the seven cases under
 `conformance/cases/gitleaks/` were written against the TypeScript one and pass
 against this one unchanged, which is the claim being made.
