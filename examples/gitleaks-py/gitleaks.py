@@ -21,8 +21,8 @@ def binary() -> str:
     return os.environ.get("RSP_GITLEAKS") or "gitleaks"
 
 
-def run(args: list[str], content: bytes) -> str:
-    """Runs the binary once.
+def run(args: list[str], content: bytes) -> tuple[str, int]:
+    """Runs the binary once, returning what it wrote and how it exited.
 
     The status is why this exists: a gitleaks that could not run prints
     nothing, exactly like a clean chunk, so ignoring it would turn every
@@ -31,19 +31,19 @@ def run(args: list[str], content: bytes) -> str:
     done = subprocess.run([binary(), *args], input=content, capture_output=True, check=False)
     if done.returncode not in (0, FOUND):
         raise RuntimeError(f"gitleaks exited with {done.returncode}")
-    return done.stdout.decode("utf-8").strip()
+    return done.stdout.decode("utf-8").strip(), done.returncode
 
 
 def version() -> str:
     """Carried in the declaration so a cache key includes it (D4)."""
-    return run(["version"], b"")
+    return run(["version"], b"")[0]
 
 
 def scan(content: bytes) -> list[dict]:
     """The findings for one chunk."""
     # "-" is gitleaks' own spelling of stdout; /dev/stdout fails its
     # writability pre-check. --no-banner keeps stdout to the report alone.
-    report = run(
+    report, status = run(
         [
             "stdin",
             "--no-banner",
@@ -56,7 +56,17 @@ def scan(content: bytes) -> list[dict]:
         ],
         content,
     )
-    return json.loads(report) if report else []
+    # Exit 0 with nothing written is a clean chunk. Exit 2 is gitleaks saying
+    # it found something, so nothing written is a report that went missing,
+    # and reading it as no findings is the ALLOW E1 exists to refuse.
+    if status == FOUND and not report:
+        raise RuntimeError("gitleaks reported findings and wrote no report")
+    if not report:
+        return []
+    findings = json.loads(report)
+    if not isinstance(findings, list):
+        raise TypeError("gitleaks wrote a report that is not a list of findings")
+    return findings
 
 
 def to_spans(findings: list[dict], content: bytes) -> list[dict]:
