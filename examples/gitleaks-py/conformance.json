@@ -1,0 +1,3 @@
+{ "name": "rsp-gitleaks-py", "role": "gitleaks",
+  "source": ["{python}", "{dir}/main.py"],
+  "toolchain": [], "wraps": ["gitleaks"] }

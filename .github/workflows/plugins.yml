@@ -115,6 +115,8 @@ jobs:
               "gitleaks-${GITLEAKS_VERSION}/testdata"
           find "${RUNNER_TEMP}/corpus" -type f | wc -l
 
+      # No build step and no toolchain of its own, so the Python adapter's own
+      # tests are collected by this run rather than by a step of their own.
       # Nothing skips here, so this is the only run of every clause against every plugin.
       - name: Every case, every tool present
         run: uv run --frozen pytest tests/ -q --html=report.html --self-contained-html
