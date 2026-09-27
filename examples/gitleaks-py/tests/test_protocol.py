@@ -103,3 +103,29 @@ def test_declares_the_wrapped_tools_version_in_its_own(fake):
 
     assert got["version"] == "0.1.0+8.30.1"
     assert got["name"] == "rsp-gitleaks-py"
+
+
+def test_refuses_a_missing_report_when_gitleaks_says_it_found_something(fake):
+    """Exit 2 is gitleaks saying it found something.
+
+    Nothing written is then a report that went missing, and no findings is the
+    one reading of it that publishes the chunk (E1, D3).
+    """
+    fake("", "2")
+
+    with pytest.raises(RuntimeError):
+        respond(chunk(KEY))
+
+
+def test_refuses_a_report_that_is_not_a_list(fake):
+    fake('{"RuleID": "aws-access-token"}', "2")
+
+    with pytest.raises(TypeError):
+        respond(chunk(KEY))
+
+
+def test_an_empty_report_with_a_clean_exit_is_still_a_clean_chunk(fake):
+    """The reading that must survive the two above."""
+    fake("", "0")
+
+    assert respond(chunk("nothing here")) == {"verdict": "ALLOW"}

@@ -14,6 +14,11 @@ $ echo '{"rsp_version":"0.1","hook":"handshake"}' | python3 main.py
 
 Needs `gitleaks` on `PATH`, or `RSP_GITLEAKS`. Standard library only.
 
+`gitleaks --exit-code 2` exits 2 when it found something, so exit 2 with
+nothing on stdout is a report that went missing, and no findings is the one
+reading of it that publishes the chunk. Exit 0 with nothing written is a
+clean chunk and stays one.
+
 It does **not** import `rsp`, and the host gets no shortcut for sharing its
 language: same spawn, same handshake, same pipe. A plugin written in the
 host's language is a plugin.

@@ -59,7 +59,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --frozen
       # Unit tests, conformance cases and drift checks are all pytest.
-      - run: uv run pytest tests/ -q --cov --cov-report=xml
+      - run: uv run pytest tests/ examples/gitleaks-py/ -q --cov --cov-report=xml
 
       # One upload: coverage does not differ across the matrix.
       - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
