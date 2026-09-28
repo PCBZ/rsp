@@ -30,8 +30,8 @@ jobs:
           enable-cache: true
       # --frozen fails when uv.lock is out of date with pyproject.toml.
       - run: uv sync --frozen
-      - run: uv run ruff check rsp/ tests/ plugins/ conformance/
-      - run: uv run ruff format --check rsp/ tests/ plugins/ conformance/
+      - run: uv run ruff check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/
+      - run: uv run ruff format --check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/
 
       # actionlint for expression and matrix mistakes, zizmor for workflow security.
       - run: uvx --from actionlint-py==1.7.12.24 actionlint .github/workflows/*.yml
@@ -59,7 +59,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --frozen
       # Unit tests, conformance cases and drift checks are all pytest.
-      - run: uv run pytest tests/ -q --cov --cov-report=xml
+      - run: uv run pytest tests/ examples/gitleaks-py/ -q --cov --cov-report=xml
 
       # One upload: coverage does not differ across the matrix.
       - if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
