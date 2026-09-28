@@ -188,6 +188,8 @@ EXECUTABLE_MAGIC = {
     b"\xfe\xed\xfa\xce": "Mach-O 32, other endian",
     b"\xca\xfe\xba\xbe": "Mach-O universal",
     b"\xbe\xba\xfe\xca": "Mach-O universal, other endian",
+    b"\xca\xfe\xba\xbf": "Mach-O universal 64",
+    b"\xbf\xba\xfe\xca": "Mach-O universal 64, other endian",
     b"MZ": "PE",
     # What a build here produces besides executables: `.a` from cc, `.rlib`
     # from cargo, and whatever a wasm target would leave.
