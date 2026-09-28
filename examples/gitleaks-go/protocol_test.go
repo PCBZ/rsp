@@ -114,3 +114,22 @@ func TestDeclaresTheWrappedToolsVersionInItsOwn(t *testing.T) {
 		t.Errorf("got version %q", declaration.Version)
 	}
 }
+
+func TestRefusesAMissingReportWhenGitleaksSaysItFoundSomething(t *testing.T) {
+	// Exit 2 is gitleaks saying it found something; nothing written is then a
+	// report that went missing, and no findings publishes the chunk (E1, D3).
+	fake(t, "", "2")
+
+	if _, err := respond(Request{Hook: "on_chunk", Content: key}); err == nil {
+		t.Error("want an error, got a verdict")
+	}
+}
+
+func TestAnEmptyReportWithACleanExitIsStillACleanChunk(t *testing.T) {
+	// The reading that has to survive the test above.
+	fake(t, "", "0")
+
+	if got := verdict(t, Request{Hook: "on_chunk", Content: key}); got.Verdict != "ALLOW" {
+		t.Errorf("got %+v, want ALLOW", got)
+	}
+}

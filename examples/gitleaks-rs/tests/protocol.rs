@@ -115,3 +115,18 @@ fn survives_a_tool_that_writes_before_it_reads() {
 
     assert_eq!(got["verdict"], "BLOCK");
 }
+
+#[test]
+fn refuses_a_missing_report_when_gitleaks_says_it_found_something() {
+    // Exit 2 is gitleaks saying it found something; nothing written is then a
+    // report that went missing, and no findings publishes the chunk (E1, D3).
+    assert!(respond(&fake("", "2"), &chunk(KEY)).is_err());
+}
+
+#[test]
+fn an_empty_report_with_a_clean_exit_is_still_a_clean_chunk() {
+    // The reading that has to survive the test above.
+    let got = respond(&fake("", "0"), &chunk("nothing here")).unwrap();
+
+    assert_eq!(got, json!({"verdict": "ALLOW"}));
+}

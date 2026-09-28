@@ -52,7 +52,7 @@ impl Gitleaks {
 
     /// Runs the binary once. A failed run prints nothing, like a clean chunk,
     /// so only the status tells them apart (E1, D3).
-    fn run(&self, args: &[&str], input: &str) -> Result<String, Error> {
+    fn run(&self, args: &[&str], input: &str) -> Result<(String, Option<i32>), Error> {
         let (binary, rest) = self.command.split_first().ok_or("no gitleaks command")?;
         let mut child = Command::new(binary)
             .args(rest)
@@ -74,17 +74,20 @@ impl Gitleaks {
         if !output.status.success() && output.status.code() != Some(FOUND) {
             return Err(format!("gitleaks exited with {}", output.status).into());
         }
-        Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+        Ok((
+            String::from_utf8(output.stdout)?.trim().to_owned(),
+            output.status.code(),
+        ))
     }
 
     pub fn version(&self) -> Result<String, Error> {
-        self.run(&["version"], "")
+        Ok(self.run(&["version"], "")?.0)
     }
 
     pub fn scan(&self, content: &str) -> Result<Vec<Finding>, Error> {
         // "-" is gitleaks' own spelling of stdout; /dev/stdout fails its
         // writability pre-check. --no-banner keeps stdout to the report alone.
-        let report = self.run(
+        let (report, status) = self.run(
             &[
                 "stdin",
                 "--no-banner",
@@ -97,6 +100,12 @@ impl Gitleaks {
             ],
             content,
         )?;
+        // Exit 0 with nothing written is a clean chunk. Exit 2 is gitleaks
+        // saying it found something, so nothing written is a report that went
+        // missing, and reading it as no findings is the ALLOW E1 refuses.
+        if status == Some(FOUND) && report.is_empty() {
+            return Err("gitleaks reported findings and wrote no report".into());
+        }
         if report.is_empty() {
             return Ok(Vec::new());
         }

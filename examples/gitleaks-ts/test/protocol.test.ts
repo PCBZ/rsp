@@ -87,6 +87,36 @@ describe("respond", () => {
     assert.throws(() => respond({ hook: "on_chunk", content: "anything" }));
   });
 
+  it("refuses a missing report when gitleaks says it found something", () => {
+    // Exit 2 is gitleaks saying it found something; nothing written is then a
+    // report that went missing, and no findings publishes the chunk (E1, D3).
+    process.env.RSP_GITLEAKS = FAKE;
+    process.env.FAKE_GITLEAKS_REPORT = "";
+    process.env.FAKE_GITLEAKS_EXIT = "2";
+    assert.throws(() => respond({ hook: "on_chunk", content: "anything" }));
+  });
+
+  it("reads an empty report with a clean exit as a clean chunk", () => {
+    // The reading that has to survive the test above.
+    process.env.RSP_GITLEAKS = FAKE;
+    process.env.FAKE_GITLEAKS_REPORT = "";
+    process.env.FAKE_GITLEAKS_EXIT = "0";
+    const response = respond({ hook: "on_chunk", content: "anything" });
+    assert.equal("verdict" in response && response.verdict, "ALLOW");
+  });
+
+  it("refuses a report that is not a list of findings", () => {
+    process.env.RSP_GITLEAKS = FAKE;
+    process.env.FAKE_GITLEAKS_REPORT = '{"RuleID":"aws-access-token"}';
+    process.env.FAKE_GITLEAKS_EXIT = "2";
+    // The message, not just a throw: without the check an object still fails
+    // somewhere further on, and any throw would pass for the wrong reason.
+    assert.throws(
+      () => respond({ hook: "on_chunk", content: "anything" }),
+      /not a list of findings/,
+    );
+  });
+
   it("declares itself with the wrapped tool's version in its own", () => {
     process.env.RSP_GITLEAKS = FAKE;
     process.env.FAKE_GITLEAKS_REPORT = "8.30.1";
