@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -175,3 +176,38 @@ def test_the_readme_lists_every_adapter_that_exists() -> None:
     assert listed == ADAPTERS, f"README lists {listed}, examples/ holds {ADAPTERS}"
     assert stated.group(2) == WORDS[len(ADAPTERS)], f"there are {len(ADAPTERS)} adapters"
     assert stated.group(3) == WORDS[len(ADAPTERS)]
+
+
+EXECUTABLE_MAGIC = {
+    b"\x7fELF": "ELF",
+    b"\xcf\xfa\xed\xfe": "Mach-O",
+    b"\xce\xfa\xed\xfe": "Mach-O 32",
+    b"\xca\xfe\xba\xbe": "Mach-O universal",
+    b"MZ": "PE",
+}
+
+
+def test_no_compiled_artefact_is_tracked() -> None:
+    """Read the tree, not the extension: a build product has no reviewer.
+
+    This repo's position is that a plugin is untrusted code someone else
+    wrote, which is not a claim it can make while shipping an object file
+    nobody can read. Four of them and a 36KB binary were committed by one
+    `git add -A` after a branch switch removed the `.gitignore` covering
+    them — the rule is in the root one now, out of reach of a checkout.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.split(b"\0")
+
+    found = []
+    for name in (n.decode() for n in tracked if n):
+        path = ROOT / name
+        if not path.is_file():
+            continue
+        head = path.read_bytes()[:4]
+        for magic, kind in EXECUTABLE_MAGIC.items():
+            if head.startswith(magic):
+                found.append(f"{name} ({kind})")
+                break
+    assert not found, f"compiled output is tracked: {found}"
