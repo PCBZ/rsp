@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -175,3 +176,50 @@ def test_the_readme_lists_every_adapter_that_exists() -> None:
     assert listed == ADAPTERS, f"README lists {listed}, examples/ holds {ADAPTERS}"
     assert stated.group(2) == WORDS[len(ADAPTERS)], f"there are {len(ADAPTERS)} adapters"
     assert stated.group(3) == WORDS[len(ADAPTERS)]
+
+
+# Both byte orders of each: a cross-compiled Mach-O is still a Mach-O, and a
+# guard that only knows the one this laptop emits is a guard for this laptop.
+EXECUTABLE_MAGIC = {
+    b"\x7fELF": "ELF",
+    b"\xcf\xfa\xed\xfe": "Mach-O 64",
+    b"\xce\xfa\xed\xfe": "Mach-O 32",
+    b"\xfe\xed\xfa\xcf": "Mach-O 64, other endian",
+    b"\xfe\xed\xfa\xce": "Mach-O 32, other endian",
+    b"\xca\xfe\xba\xbe": "Mach-O universal",
+    b"\xbe\xba\xfe\xca": "Mach-O universal, other endian",
+    b"\xca\xfe\xba\xbf": "Mach-O universal 64",
+    b"\xbf\xba\xfe\xca": "Mach-O universal 64, other endian",
+    b"MZ": "PE",
+    # What a build here produces besides executables: `.a` from cc, `.rlib`
+    # from cargo, and whatever a wasm target would leave.
+    b"!<arch>": "static archive",
+    b"\x00asm": "WebAssembly",
+}
+
+
+def test_no_compiled_artefact_is_tracked() -> None:
+    """Read the tree, not the extension: a build product has no reviewer.
+
+    This repo's position is that a plugin is untrusted code someone else
+    wrote, which is not a claim it can make while shipping an object file
+    nobody can read. Four of them and a 36KB binary were committed by one
+    `git add -A` after a branch switch removed the `.gitignore` covering
+    them — the rule is in the root one now, out of reach of a checkout.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.split(b"\0")
+
+    found = []
+    for name in (n.decode() for n in tracked if n):
+        path = ROOT / name
+        if not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            head = handle.read(max(len(magic) for magic in EXECUTABLE_MAGIC))
+        for magic, kind in EXECUTABLE_MAGIC.items():
+            if head.startswith(magic):
+                found.append(f"{name} ({kind})")
+                break
+    assert not found, f"compiled output is tracked: {found}"

@@ -6,3 +6,10 @@ coverage.xml
 .ruff_cache/
 .pytest_cache/
 report.html
+
+# Build output. Committed once by a `git add -A` after a branch switch took
+# the .gitignore that had been covering it, so the rule lives here now, where
+# no checkout can remove it while the artefacts remain.
+*.o
+examples/gitleaks-c/rsp-gitleaks-c
+examples/gitleaks-c/test-gitleaks
