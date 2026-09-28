@@ -178,12 +178,21 @@ def test_the_readme_lists_every_adapter_that_exists() -> None:
     assert stated.group(3) == WORDS[len(ADAPTERS)]
 
 
+# Both byte orders of each: a cross-compiled Mach-O is still a Mach-O, and a
+# guard that only knows the one this laptop emits is a guard for this laptop.
 EXECUTABLE_MAGIC = {
     b"\x7fELF": "ELF",
-    b"\xcf\xfa\xed\xfe": "Mach-O",
+    b"\xcf\xfa\xed\xfe": "Mach-O 64",
     b"\xce\xfa\xed\xfe": "Mach-O 32",
+    b"\xfe\xed\xfa\xcf": "Mach-O 64, other endian",
+    b"\xfe\xed\xfa\xce": "Mach-O 32, other endian",
     b"\xca\xfe\xba\xbe": "Mach-O universal",
+    b"\xbe\xba\xfe\xca": "Mach-O universal, other endian",
     b"MZ": "PE",
+    # What a build here produces besides executables: `.a` from cc, `.rlib`
+    # from cargo, and whatever a wasm target would leave.
+    b"!<arch>": "static archive",
+    b"\x00asm": "WebAssembly",
 }
 
 
@@ -205,7 +214,8 @@ def test_no_compiled_artefact_is_tracked() -> None:
         path = ROOT / name
         if not path.is_file():
             continue
-        head = path.read_bytes()[:4]
+        with path.open("rb") as handle:
+            head = handle.read(max(len(magic) for magic in EXECUTABLE_MAGIC))
         for magic, kind in EXECUTABLE_MAGIC.items():
             if head.startswith(magic):
                 found.append(f"{name} ({kind})")
