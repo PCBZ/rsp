@@ -150,3 +150,28 @@ def test_the_readme_example_span_is_valid() -> None:
 
     assert 0 <= start < end <= len(content.encode("utf-8")), f"{start}-{end} in {content!r}"
     assert content.encode("utf-8")[start:end].decode("utf-8").startswith("AKIA")
+
+
+ADAPTERS = sorted(p.parent.name for p in ROOT.glob("examples/*/conformance.json"))
+WORDS = WORDS | {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
+def test_the_readme_lists_every_adapter_that_exists() -> None:
+    """An adapter arrives or leaves and the README says neither.
+
+    It has happened in both directions: a fourth was added and the line still
+    said three, and then the whole directory left the tree while the line
+    still said four. Nothing failed either time, because a plugin nobody
+    declares and a plugin nobody wrote are the same absence to every other
+    check here.
+    """
+    stated = re.search(
+        r"`examples/gitleaks-\{([^}]+)\}` \| .*? (\w+) times, in (\w+) languages",
+        (ROOT / "README.md").read_text(encoding="utf-8"),
+    )
+    assert stated, "the README no longer lists the adapters in the form the code can check"
+
+    listed = sorted(f"gitleaks-{suffix.strip()}" for suffix in stated.group(1).split(","))
+    assert listed == ADAPTERS, f"README lists {listed}, examples/ holds {ADAPTERS}"
+    assert stated.group(2) == WORDS[len(ADAPTERS)], f"there are {len(ADAPTERS)} adapters"
+    assert stated.group(3) == WORDS[len(ADAPTERS)]
