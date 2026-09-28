@@ -94,6 +94,30 @@ jobs:
           go test -count=1 ./...
           go build -o "${RUNNER_TEMP}/rsp-gitleaks-go" .
 
+      - name: Install cJSON
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y libcjson-dev
+          else
+            brew install cjson
+          fi
+
+      # Twice: once as it ships, once under the sanitizers. Refusing a Match
+      # shorter than its span is memory safety, not behaviour, so no assertion
+      # here can see it go — ASan can.
+      - name: Build and test the C plugin
+        working-directory: examples/gitleaks-c
+        run: |
+          make test
+          make clean
+          make CFLAGS="-O1 -g -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined $EXTRA_I" \
+               LDFLAGS="-fsanitize=address,undefined $EXTRA_L" test
+          make clean
+          make rsp-gitleaks-c
+        env:
+          EXTRA_I: ${{ runner.os == 'macOS' && '-I/opt/homebrew/include' || '' }}
+          EXTRA_L: ${{ runner.os == 'macOS' && '-L/opt/homebrew/lib' || '' }}
+
       # Release build: a debug build spends longer starting than scanning.
       - name: Build and test the Rust plugin
         working-directory: examples/gitleaks-rs
@@ -125,6 +149,7 @@ jobs:
           RSP_GITLEAKS_CORPUS: ${{ runner.temp }}/corpus
           RSP_PLUGIN_GITLEAKS_GO: ${{ runner.temp }}/rsp-gitleaks-go
           RSP_PLUGIN_GITLEAKS_RS: ${{ runner.temp }}/rsp-gitleaks-rs
+          RSP_PLUGIN_GITLEAKS_C: ${{ github.workspace }}/examples/gitleaks-c/rsp-gitleaks-c
 
       # always(): a failed run's report is the one worth reading. One OS is enough.
       - if: always() && matrix.runner == 'ubuntu-latest'
