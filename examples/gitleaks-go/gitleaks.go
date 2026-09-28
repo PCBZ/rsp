@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -85,34 +86,49 @@ func columnOrigins(content string) []int {
 	return starts
 }
 
-// run executes the binary once. A failed run prints nothing, like a clean
-// chunk, so only the status tells them apart (E1, D3).
-func run(args []string, input string) (string, error) {
+// run executes the binary once, returning what it wrote and how it exited. A
+// failed run prints nothing, like a clean chunk, so only the status tells them
+// apart (E1, D3).
+func run(args []string, input string) (string, int, error) {
 	cmd := exec.Command(binary(), args...)
 	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.Output()
-	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == found {
-		err = nil
+	status := 0
+	if exit, ok := err.(*exec.ExitError); ok {
+		status = exit.ExitCode()
+		if status == found {
+			err = nil
+		}
 	}
 	if err != nil {
-		return "", err
+		return "", status, err
 	}
-	return strings.TrimSpace(string(out)), nil
+	return strings.TrimSpace(string(out)), status, nil
 }
 
 func version() (string, error) {
-	return run([]string{"version"}, "")
+	report, _, err := run([]string{"version"}, "")
+	return report, err
 }
 
 func scan(content string) ([]Finding, error) {
 	// "-" is gitleaks' own spelling of stdout; /dev/stdout fails its writability
 	// pre-check. --no-banner keeps stdout to the report alone.
-	report, err := run([]string{
+	report, status, err := run([]string{
 		"stdin", "--no-banner", "--report-format", "json",
 		"--report-path", "-", "--exit-code", "2",
 	}, content)
-	if err != nil || report == "" {
+	if err != nil {
 		return nil, err
+	}
+	// Exit 0 with nothing written is a clean chunk. Exit 2 is gitleaks saying it
+	// found something, so nothing written is a report that went missing, and
+	// reading it as no findings is the ALLOW E1 refuses.
+	if status == found && report == "" {
+		return nil, errors.New("gitleaks reported findings and wrote no report")
+	}
+	if report == "" {
+		return nil, nil
 	}
 	var findings []Finding
 	if err := json.Unmarshal([]byte(report), &findings); err != nil {

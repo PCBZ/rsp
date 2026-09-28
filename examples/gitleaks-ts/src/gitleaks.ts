@@ -82,10 +82,11 @@ function byteOffsetOfEachLine(bytes: Buffer): number[] {
 }
 
 /**
- * Runs the binary once, synchronously (T1). A failed run prints nothing, like a
- * clean chunk, so only the status tells them apart (E1, D3).
+ * Runs the binary once, synchronously (T1), returning what it wrote and how it
+ * exited. A failed run prints nothing, like a clean chunk, so only the status
+ * tells them apart (E1, D3).
  */
-function run(args: string[], input: string): string {
+function run(args: string[], input: string): { report: string; status: number | null } {
   const { stdout, stderr, status, error } = spawnSync(binary(), args, {
     input,
     encoding: "utf8",
@@ -94,17 +95,17 @@ function run(args: string[], input: string): string {
   if (status !== 0 && status !== FOUND) {
     throw new Error(`gitleaks exited ${status}: ${stderr.trim()}`);
   }
-  return stdout.trim();
+  return { report: stdout.trim(), status };
 }
 
 export function version(): string {
-  return run(["version"], "");
+  return run(["version"], "").report;
 }
 
 export function scan(content: string): Finding[] {
   // "-" is gitleaks' own spelling of stdout; /dev/stdout fails its writability
   // pre-check. --no-banner keeps stdout to the report alone.
-  const report = run(
+  const { report, status } = run(
     [
       "stdin",
       "--no-banner",
@@ -117,5 +118,16 @@ export function scan(content: string): Finding[] {
     ],
     content,
   );
-  return report === "" ? [] : (JSON.parse(report) as Finding[]);
+  // Exit 0 with nothing written is a clean chunk. Exit 2 is gitleaks saying it
+  // found something, so nothing written is a report that went missing, and
+  // reading it as no findings is the ALLOW E1 refuses.
+  if (status === FOUND && report === "") {
+    throw new Error("gitleaks reported findings and wrote no report");
+  }
+  if (report === "") return [];
+  const findings: unknown = JSON.parse(report);
+  if (!Array.isArray(findings)) {
+    throw new Error("gitleaks wrote a report that is not a list of findings");
+  }
+  return findings as Finding[];
 }
