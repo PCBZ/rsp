@@ -52,10 +52,18 @@ static int run(char *const argv[], const char *input, size_t length, char **out,
         return -1;
     }
 
+    /* Every failure below leaves through `giving_up`, because the ones that do
+     * not are what turns half a report into a verdict. */
     while (from_child[0] >= 0) {
         struct pollfd fds[2] = {{from_child[0], POLLIN, 0}, {to_child[1], POLLOUT, 0}};
         int watching = (to_child[1] >= 0) ? 2 : 1;
-        if (poll(fds, watching, -1) < 0 && errno != EINTR) break;
+        if (poll(fds, watching, -1) < 0) {
+            /* revents is undefined after a failed poll, so neither branch below
+             * may run on the way past. */
+            if (errno == EINTR) continue;
+            perror("rsp-gitleaks-c: poll");
+            goto giving_up;
+        }
 
         if (watching == 2 && (fds[1].revents & (POLLOUT | POLLERR | POLLHUP))) {
             ssize_t sent = write(to_child[1], input + written, length - written);
@@ -65,9 +73,19 @@ static int run(char *const argv[], const char *input, size_t length, char **out,
             }
         }
         if (fds[0].revents & (POLLIN | POLLHUP)) {
-            if (held + 4096 > room && !(report = realloc(report, room *= 2))) return -1;
+            if (held + 4096 > room) {
+                char *bigger = realloc(report, room * 2);
+                if (!bigger) goto giving_up; /* realloc into itself loses this */
+                report = bigger;
+                room *= 2;
+            }
             ssize_t got = read(from_child[0], report + held, room - held - 1);
-            if (got <= 0) {
+            if (got < 0) {
+                if (errno == EINTR) continue;
+                perror("rsp-gitleaks-c: read");
+                goto giving_up;
+            }
+            if (got == 0) { /* EOF, which -1 is not */
                 close(from_child[0]);
                 from_child[0] = -1;
             } else {
@@ -92,6 +110,14 @@ static int run(char *const argv[], const char *input, size_t length, char **out,
     while (held > 0 && (report[held - 1] == '\n' || report[held - 1] == ' ')) report[--held] = '\0';
     *out = report;
     return 0;
+
+giving_up:
+    free(report);
+    if (to_child[1] >= 0) close(to_child[1]);
+    if (from_child[0] >= 0) close(from_child[0]);
+    kill(child, SIGKILL); /* else waitpid blocks on a tool still writing */
+    while (waitpid(child, NULL, 0) < 0 && errno == EINTR) {}
+    return -1;
 }
 
 int gl_version(char **version) {

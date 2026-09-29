@@ -16,8 +16,9 @@ test-gitleaks: test_gitleaks.o protocol.o gitleaks.o
 main.o protocol.o gitleaks.o test_gitleaks.o: gitleaks.h protocol.h
 
 .PHONY: test clean
-test: test-gitleaks
+test: test-gitleaks rsp-gitleaks-c
 	./test-gitleaks
+	./testdata/requests.sh ./rsp-gitleaks-c
 
 clean:
 	rm -f rsp-gitleaks-c test-gitleaks *.o
