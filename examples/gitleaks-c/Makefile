@@ -19,6 +19,7 @@ main.o protocol.o gitleaks.o spawn.o test_gitleaks.o: gitleaks.h protocol.h spaw
 test: test-gitleaks rsp-gitleaks-c
 	./test-gitleaks
 	./testdata/requests.sh ./rsp-gitleaks-c
+	./testdata/delivery.sh ./rsp-gitleaks-c
 
 clean:
 	rm -f rsp-gitleaks-c test-gitleaks *.o

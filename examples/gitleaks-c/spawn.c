@@ -6,6 +6,7 @@
 #include "spawn.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -42,8 +43,16 @@ int gl_spawn(char *const argv[], const char *input, size_t length, char **out, i
     close(to_child[0]);
     close(from_child[1]);
     signal(SIGPIPE, SIG_IGN); /* a tool that exits early must not kill us */
+    /* Non-blocking, or the poll below is not enough: POLLOUT means some room,
+     * and a blocking write of more than that waits for the child to take all
+     * of it — which it cannot while its own stdout is full. */
+    fcntl(to_child[1], F_SETFL, O_NONBLOCK);
 
     size_t written = 0, held = 0, room = 8192;
+    if (length == 0) { /* nothing to send, and a zero-length write says nothing */
+        close(to_child[1]);
+        to_child[1] = -1;
+    }
     char *report = malloc(room);
     if (!report) {
         close(to_child[1]);
@@ -66,7 +75,13 @@ int gl_spawn(char *const argv[], const char *input, size_t length, char **out, i
 
         if (watching == 2 && (fds[1].revents & (POLLOUT | POLLERR | POLLHUP))) {
             ssize_t sent = write(to_child[1], input + written, length - written);
-            if (sent <= 0 || (written += (size_t)sent) == length) {
+            if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+                continue; /* no room yet, or interrupted: the poll will say when */
+            }
+            if (sent > 0) written += (size_t)sent;
+            if (sent <= 0 || written == length) {
+                /* Whether the chunk got there is settled after the loop: a
+                 * child that stopped reading judged less than we sent. */
                 close(to_child[1]);
                 to_child[1] = -1;
             }
@@ -93,6 +108,12 @@ int gl_spawn(char *const argv[], const char *input, size_t length, char **out, i
         }
     }
     if (to_child[1] >= 0) close(to_child[1]);
+    if (written != length) {
+        /* The tool saw part of the chunk, so its verdict is not about ours —
+         * whatever its exit status says (E1). */
+        fprintf(stderr, "rsp-gitleaks-c: sent %zu of %zu bytes\n", written, length);
+        goto giving_up;
+    }
     report[held] = '\0';
 
     int wait_status = 0;

@@ -50,6 +50,13 @@ purely to give the sanitizer something to walk into.
 deadlock against a tool that fills stdout before draining stdin. Go and Node
 do this for you and Rust spawns a thread; here it is the loop in `spawn.c`.
 
+Polling is necessary and was not sufficient: `POLLOUT` means some room in the
+pipe, and a blocking write of more than that waits for the child to take all
+of it, which it cannot while its own stdout is full. The write end is
+non-blocking, and whether the whole chunk arrived is settled after the loop —
+a tool that read part of it judged something other than what the host sent,
+whatever its exit status says.
+
 That file exists for the reason `rsp/process.py` is apart from the layers
 above it: a pipe is not a report. It starts a command, feeds it, drains it
 and reaps it, and reports the exit status without judging it — which of them
