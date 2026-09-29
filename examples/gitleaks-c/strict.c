@@ -12,7 +12,7 @@ static int refuse(const char *why) {
     return -1;
 }
 
-/* Past a string literal, which is where a brace or a digit means nothing. */
+/* Past a string literal, which is where a digit means nothing. */
 static const char *past_string(const char *at) {
     for (at++; *at && *at != '"'; at++) {
         if (*at == '\\' && at[1]) at++;
@@ -20,50 +20,18 @@ static const char *past_string(const char *at) {
     return *at ? at + 1 : at;
 }
 
-/* Whether this key has been seen in the object depth `depth` is tracking.
- * Keys are compared as written: two spellings of one key are two keys to
- * every parser, so the grammar's question is the textual one. */
-static int repeated(const char *raw, const char *key, size_t length, int depth) {
-    int at_depth = 0;
-    for (const char *scan = raw; *scan; ) {
-        if (*scan == '"') {
-            const char *end = past_string(scan);
-            const char *after = end;
-            while (*after == ' ' || *after == '\t' || *after == '\n' || *after == '\r') after++;
-            if (*after == ':' && at_depth == depth && (size_t)(end - scan - 2) == length
-                && strncmp(scan + 1, key, length) == 0) {
-                if (scan + 1 != key) return 1;
-            }
-            scan = end;
-            continue;
-        }
-        if (*scan == '{') at_depth++;
-        if (*scan == '}') at_depth--;
-        scan++;
-    }
-    return 0;
-}
-
-int rsp_strict(const char *raw) {
+int rsp_strict_text(const char *raw) {
     if ((unsigned char)raw[0] == 0xEF && (unsigned char)raw[1] == 0xBB
         && (unsigned char)raw[2] == 0xBF) {
         return refuse("a byte order mark is not whitespace");
     }
-    int depth = 0;
     for (const char *at = raw; *at; ) {
         if (*at == '"') {
-            const char *end = past_string(at);
-            const char *after = end;
-            while (*after == ' ' || *after == '\t' || *after == '\n' || *after == '\r') after++;
-            if (*after == ':' && repeated(raw, at + 1, (size_t)(end - at - 2), depth)) {
-                return refuse("a key is repeated in one object");
-            }
-            at = end;
+            at = past_string(at);
             continue;
         }
-        if (*at == '{') depth++;
-        if (*at == '}') depth--;
-        if ((*at == '-' || (*at >= '0' && *at <= '9')) && (at == raw || strchr(":,[ \t\n\r", at[-1]))) {
+        if ((*at == '-' || (*at >= '0' && *at <= '9'))
+            && (at == raw || strchr(":,[ \t\n\r", at[-1]))) {
             const char *digits = (*at == '-') ? at + 1 : at;
             size_t run = strspn(digits, "0123456789");
             if (run > 1 && digits[0] == '0') return refuse("a number may not have a leading zero");
@@ -76,6 +44,26 @@ int rsp_strict(const char *raw) {
             continue;
         }
         at++;
+    }
+    return 0;
+}
+
+/* Asked of the tree, not the text: cJSON keeps both of a repeated key as
+ * siblings and has already unescaped them, so two spellings of one name
+ * arrive here as one name twice. A text scan comparing what was written sees
+ * two different keys and lets the message through. */
+int rsp_strict_tree(const cJSON *value) {
+    if (cJSON_IsObject(value)) {
+        for (const cJSON *one = value->child; one; one = one->next) {
+            for (const cJSON *other = one->next; other; other = other->next) {
+                if (one->string && other->string && strcmp(one->string, other->string) == 0) {
+                    return refuse("a key is repeated in one object");
+                }
+            }
+        }
+    }
+    for (const cJSON *child = value->child; child; child = child->next) {
+        if (rsp_strict_tree(child) != 0) return -1;
     }
     return 0;
 }

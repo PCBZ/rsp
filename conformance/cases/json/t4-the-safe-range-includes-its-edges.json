@@ -1,0 +1,12 @@
+{
+  "name": "t4-the-safe-range-includes-its-edges",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Exactly ±(2^53 - 1) is inside the range. The negative edge is where abs() overflows in languages whose integers are two's complement.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"nothing here\",\"low\":-9007199254740991,\"high\":9007199254740991}",
+  "expect": {
+    "response": {
+      "verdict": "ALLOW"
+    }
+  }
+}

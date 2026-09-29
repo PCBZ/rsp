@@ -141,7 +141,16 @@ func checkNumber(number json.Number) error {
 func refuseLoneSurrogate(raw []byte) error {
 	text := string(raw)
 	for at := 0; at+6 <= len(text); at++ {
-		if text[at] != '\\' || text[at+1] != 'u' {
+		if text[at] != '\\' {
+			continue
+		}
+		// A doubled backslash is a backslash, so "\\ud800" is six ordinary
+		// characters and not an escape at all.
+		if text[at+1] == '\\' {
+			at++
+			continue
+		}
+		if text[at+1] != 'u' {
 			continue
 		}
 		var first uint16

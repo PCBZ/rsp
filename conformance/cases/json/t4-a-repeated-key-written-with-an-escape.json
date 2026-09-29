@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-repeated-key-written-with-an-escape",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Two spellings of one key. A gate comparing the text as written sees two keys and lets the message through, which is the same disagreement the plain repeat causes and harder to notice.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"harmless\",\"\\u0063ontent\":\"AKIALALEMEL33243OLIB\"}",
+  "expect": {
+    "refused": true
+  }
+}

@@ -21,15 +21,23 @@ pub fn from_str<T: DeserializeOwned>(raw: &str) -> Result<T, Error> {
 
 fn within_range(value: &Value) -> Result<(), Error> {
     match value {
-        Value::Number(number) => match number.as_i64() {
-            Some(whole) if whole.abs() > SAFE_INTEGER => {
-                Err(format!("{number} is outside ±(2^53 - 1)").into())
+        // unsigned_abs, not abs: i64::MIN has no positive counterpart, and
+        // abs panics on it in debug and wraps to a negative in release. An
+        // integer literal serde could hold in neither i64 nor u64 arrives as
+        // a float, which is also outside the range T4 allows.
+        Value::Number(number) => {
+            let outside = match (number.as_i64(), number.as_u64()) {
+                (Some(whole), _) => whole.unsigned_abs() > SAFE_INTEGER as u64,
+                (None, Some(whole)) => whole > SAFE_INTEGER as u64,
+                (None, None) => {
+                    !number.is_f64() || number.as_f64().is_some_and(|n| n.fract() == 0.0)
+                }
+            };
+            if outside {
+                return Err(format!("{number} is outside ±(2^53 - 1)").into());
             }
-            None if number.as_u64().is_some() => {
-                Err(format!("{number} is outside ±(2^53 - 1)").into())
-            }
-            _ => Ok(()),
-        },
+            Ok(())
+        }
         Value::Object(members) => members.values().try_for_each(within_range),
         Value::Array(items) => items.iter().try_for_each(within_range),
         _ => Ok(()),

@@ -54,7 +54,7 @@ int main(void) {
         free(raw);
         return 1;
     }
-    if (rsp_strict(raw) != 0) {
+    if (rsp_strict_text(raw) != 0) {
         free(raw);
         return 1;
     }
@@ -63,6 +63,12 @@ int main(void) {
     cJSON *request = cJSON_ParseWithOpts(raw, NULL, 1);
     if (!request) {
         fprintf(stderr, "rsp-gitleaks-c: the request is not JSON\n");
+        free(raw);
+        return 1;
+    }
+
+    if (rsp_strict_tree(request) != 0) {
+        cJSON_Delete(request);
         free(raw);
         return 1;
     }
