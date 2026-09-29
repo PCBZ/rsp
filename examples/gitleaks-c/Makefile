@@ -1,0 +1,25 @@
+# cJSON comes from the system, not from this repository: it is 3512 lines
+# against a core of 854, and vendoring it would make this repo responsible for
+# tracking someone else's fixes. brew install cjson / apt-get install libcjson-dev
+CFLAGS ?= -O2 -std=c11 -Wall -Wextra -Werror
+PREFIX ?= $(shell brew --prefix 2>/dev/null)
+CFLAGS += $(if $(PREFIX),-I$(PREFIX)/include)
+LDFLAGS += $(if $(PREFIX),-L$(PREFIX)/lib)
+LDLIBS = -lcjson
+
+rsp-gitleaks-c: main.o protocol.o gitleaks.o spawn.o
+	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+test-gitleaks: test_gitleaks.o protocol.o gitleaks.o spawn.o
+	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+main.o protocol.o gitleaks.o spawn.o test_gitleaks.o: gitleaks.h protocol.h spawn.h
+
+.PHONY: test clean
+test: test-gitleaks rsp-gitleaks-c
+	./test-gitleaks
+	./testdata/requests.sh ./rsp-gitleaks-c
+	./testdata/delivery.sh ./rsp-gitleaks-c
+
+clean:
+	rm -f rsp-gitleaks-c test-gitleaks *.o
