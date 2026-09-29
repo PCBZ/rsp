@@ -13,3 +13,6 @@ report.html
 *.o
 examples/gitleaks-c/rsp-gitleaks-c
 examples/gitleaks-c/test-gitleaks
+examples/gitleaks-java/classes/
+examples/gitleaks-java/lib/
+examples/gitleaks-java/rsp-gitleaks-java

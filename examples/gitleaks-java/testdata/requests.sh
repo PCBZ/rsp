@@ -1,0 +1,31 @@
+#!/bin/sh
+# One object in, and what that rules out. Run through the built launcher
+# rather than the classes, because what main does with a malformed stream is
+# not reachable from a unit test.
+set -u
+binary=${1:-./rsp-gitleaks-java}
+failures=0
+
+expect() {
+    printf '%b' "$3" | "$binary" >/dev/null 2>&1
+    got=$?
+    if [ "$got" != "$1" ]; then
+        echo "FAIL $2: exited $got, wanted $1"
+        failures=$((failures + 1))
+    fi
+}
+
+ok='{"rsp_version":"0.1","hook":"on_chunk","content":"x"}'
+expect 0 "an ordinary request" "$ok"
+expect 1 "a NUL byte and more after it" "$ok\\0extra"
+expect 1 "trailing characters after the object" "$ok trailing"
+
+# Not an error here, and the contrast is the point: examples/gitleaks-c has to
+# refuse this one, because a char * ends at the NUL and the chunk would reach
+# gitleaks shorter than the host sent it. A String carries a length, so the
+# content is judged whole.
+expect 0 "an escaped NUL in the content" \
+    '{"rsp_version":"0.1","hook":"on_chunk","content":"a\\u0000b"}'
+
+[ "$failures" = 0 ] && echo ok
+exit $((failures > 0))

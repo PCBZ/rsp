@@ -94,6 +94,17 @@ jobs:
           go test -count=1 ./...
           go build -o "${RUNNER_TEMP}/rsp-gitleaks-go" .
 
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # gson is pinned and checksummed by the Makefile, the way this job pins
+      # gitleaks: Java has no JSON in its standard library either.
+      - name: Build and test the Java plugin
+        working-directory: examples/gitleaks-java
+        run: make test
+
       - name: Install cJSON
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -150,6 +161,7 @@ jobs:
           RSP_PLUGIN_GITLEAKS_GO: ${{ runner.temp }}/rsp-gitleaks-go
           RSP_PLUGIN_GITLEAKS_RS: ${{ runner.temp }}/rsp-gitleaks-rs
           RSP_PLUGIN_GITLEAKS_C: ${{ github.workspace }}/examples/gitleaks-c/rsp-gitleaks-c
+          RSP_PLUGIN_GITLEAKS_JAVA: ${{ github.workspace }}/examples/gitleaks-java/rsp-gitleaks-java
 
       # always(): a failed run's report is the one worth reading. One OS is enough.
       - if: always() && matrix.runner == 'ubuntu-latest'

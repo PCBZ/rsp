@@ -195,6 +195,9 @@ EXECUTABLE_MAGIC = {
     # from cargo, and whatever a wasm target would leave.
     b"!<arch>": "static archive",
     b"\x00asm": "WebAssembly",
+    # A .jar is a zip, and this tree now has a build that downloads one.
+    b"PK\x03\x04": "zip",
+    b"PK\x05\x06": "empty zip",
 }
 
 
