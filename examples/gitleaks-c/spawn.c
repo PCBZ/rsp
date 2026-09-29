@@ -49,15 +49,11 @@ int gl_spawn(char *const argv[], const char *input, size_t length, char **out, i
     fcntl(to_child[1], F_SETFL, O_NONBLOCK);
 
     size_t written = 0, held = 0, room = 8192;
+    char *report = malloc(room);
+    if (!report) goto giving_up; /* which reaps the child this used to abandon */
     if (length == 0) { /* nothing to send, and a zero-length write says nothing */
         close(to_child[1]);
         to_child[1] = -1;
-    }
-    char *report = malloc(room);
-    if (!report) {
-        close(to_child[1]);
-        close(from_child[0]);
-        return -1;
     }
 
     /* Every failure below leaves through `giving_up`, because the ones that do
