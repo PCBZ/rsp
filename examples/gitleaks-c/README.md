@@ -48,4 +48,11 @@ purely to give the sanitizer something to walk into.
 
 **Both pipes are polled.** Writing the chunk and then reading the report would
 deadlock against a tool that fills stdout before draining stdin. Go and Node
-do this for you and Rust spawns a thread; here it is the loop in `run`.
+do this for you and Rust spawns a thread; here it is the loop in `spawn.c`.
+
+That file exists for the reason `rsp/process.py` is apart from the layers
+above it: a pipe is not a report. It starts a command, feeds it, drains it
+and reaps it, and reports the exit status without judging it — which of them
+mean "found" is gitleaks' convention and belongs to `gitleaks.c`. The other
+four adapters get all of this from a standard library in ten to sixteen
+lines, which is why only this one has a file for it.
