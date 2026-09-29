@@ -16,7 +16,7 @@ fn main() {
 fn answer() -> Result<(), Error> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
-    let request: Request = serde_json::from_str(&input)?;
+    let request: Request = rsp_gitleaks::strictjson::from_str(&input)?;
     let response = respond(&Gitleaks::from_env(), &request)?;
 
     let mut stdout = io::stdout().lock();

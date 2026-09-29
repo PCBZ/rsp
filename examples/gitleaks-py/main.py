@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 
+import strictjson
 from protocol import respond
 
 
@@ -18,7 +19,7 @@ def main() -> None:
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     try:
-        json.dump(respond(json.load(sys.stdin)), sys.stdout)
+        json.dump(respond(strictjson.loads(sys.stdin.read())), sys.stdout)
     except Exception as exc:
         print(f"rsp-gitleaks-py: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

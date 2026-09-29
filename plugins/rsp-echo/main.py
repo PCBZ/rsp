@@ -15,6 +15,8 @@ Content markers select the verdict, so fixtures can drive all four:
 import json
 import sys
 
+import strictjson
+
 RSP_VERSION = "0.1"
 REDACT_MARKER = "secret"
 REPLACEMENT = "[REDACTED:echo-test]"
@@ -67,7 +69,7 @@ def main() -> None:
 
     # stdout is the protocol channel; diagnostics go to stderr (T2).
     print("rsp-echo: reading request", file=sys.stderr)
-    request = json.load(sys.stdin)
+    request = strictjson.loads(sys.stdin.read())
     json.dump(evaluate(request), sys.stdout)
     sys.stdout.write("\n")
 

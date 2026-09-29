@@ -1,0 +1,10 @@
+{
+  "name": "t4-nan-is-not-a-number",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "NaN is not in the grammar. Python's json reads it, and a plugin that inherits that leniency accepts a message a conforming host would never send and another plugin would reject.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\",\"score\":NaN}",
+  "expect": {
+    "refused": true
+  }
+}

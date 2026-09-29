@@ -16,12 +16,8 @@ public final class Main {
     public static void main(String[] args) {
         PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
         try {
-            String raw = new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
-            JsonElement request = JsonParser.parseString(raw);
-            if (!request.isJsonObject()) {
-                throw new IllegalArgumentException("the request is not a JSON object");
-            }
-            out.println(Protocol.respond(request.getAsJsonObject()));
+            String raw = StrictJson.decode(System.in.readAllBytes());
+            out.println(Protocol.respond(StrictJson.parse(raw)));
         } catch (Exception failed) {
             System.err.println("rsp-gitleaks-java: " + failed.getMessage());
             System.exit(1);

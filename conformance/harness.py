@@ -37,10 +37,15 @@ def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) ->
     `escaped` sends `\uXXXX` escapes instead of raw UTF-8. JSON permits either,
     and a plugin that decodes surrogate pairs wrong is off by two outside the BMP.
     """
+    # `raw_request` is the message byte for byte. T4 is about what a parser
+    # accepts beyond the grammar, and a case built from `request` cannot carry
+    # a repeated key or a bare NaN — this file is JSON too.
+    raw = case.get("raw_request")
+    payload = raw if raw is not None else json.dumps(case["request"], ensure_ascii=escaped)
     try:
         proc = subprocess.run(
             command,
-            input=json.dumps(case["request"], ensure_ascii=escaped),
+            input=payload,
             capture_output=True,
             encoding="utf-8",  # whatever the locale (M1)
             check=False,
@@ -52,6 +57,13 @@ def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) ->
         return Outcome(False, f"could not start: {exc}")
     except UnicodeDecodeError:
         return Outcome(False, "output is not UTF-8")
+
+    if case["expect"].get("refused"):
+        # A message no plugin may act on. Refusing is saying nothing a host
+        # could read as a verdict; the host turns that into BLOCK (E1).
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return Outcome(True)
+        return Outcome(False, f"answered {proc.stdout.strip()[:120]} instead of refusing")
 
     if proc.returncode != 0:
         return Outcome(False, f"exited {proc.returncode}: {proc.stderr.strip()[:200]}")

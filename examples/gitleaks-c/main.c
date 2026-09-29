@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "protocol.h"
+#include "strict.h"
 
 static char *read_all(size_t *length) {
     size_t held = 0, room = 8192;
@@ -50,6 +51,10 @@ int main(void) {
      * object followed by a NUL and more bytes would get a verdict. */
     if (memchr(raw, '\0', length)) {
         fprintf(stderr, "rsp-gitleaks-c: the request contains a NUL byte\n");
+        free(raw);
+        return 1;
+    }
+    if (rsp_strict(raw) != 0) {
         free(raw);
         return 1;
     }

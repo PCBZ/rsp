@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-byte-order-mark-is-not-whitespace",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "The framing bytes are space, tab, carriage return and line feed. A BOM is none of them, and a parser that skips it accepts what the grammar does not.",
+  "raw_request": "﻿{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\"}",
+  "expect": {
+    "refused": true
+  }
+}

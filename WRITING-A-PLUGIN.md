@@ -14,9 +14,16 @@ file it names. The `$` transcripts are invented — no plugin here is called
 
 ```ts
 // examples/gitleaks-ts/src/main.ts
-const request: Request = JSON.parse(await read(process.stdin));
+const request = parse(await read(process.stdin)) as Request;
 process.stdout.write(`${JSON.stringify(respond(request))}\n`);
 ```
+
+`parse` is not `JSON.parse`. T4 says an implementation must refuse a message
+that repeats a key, carries an integer above 2^53 − 1, or is framed by a byte
+order mark — in either direction, so a plugin refuses one as much as a host
+does. Every parser is lenient somewhere and no two in the same place, which
+is why each adapter here carries a small gate of its own beside the parser it
+uses.
 
 ## Two kinds of call
 

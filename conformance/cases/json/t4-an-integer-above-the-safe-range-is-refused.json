@@ -1,0 +1,10 @@
+{
+  "name": "t4-an-integer-above-the-safe-range-is-refused",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Above 2^53-1 a JavaScript number is no longer the integer that was sent, so two plugins reading the same message disagree about its value.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\",\"seen\":9007199254740993}",
+  "expect": {
+    "refused": true
+  }
+}
