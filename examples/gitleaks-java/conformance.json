@@ -1,0 +1,3 @@
+{ "name": "rsp-gitleaks-java", "role": "gitleaks",
+  "source": ["{dir}/rsp-gitleaks-java"],
+  "toolchain": ["{dir}/rsp-gitleaks-java"], "wraps": ["gitleaks"] }
