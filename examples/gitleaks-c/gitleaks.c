@@ -1,3 +1,8 @@
+/* fork, execvp, poll, kill and waitpid are POSIX, and -std=c11 tells glibc
+ * to hide what ISO C does not define. Said here rather than in CFLAGS so a
+ * build that overrides those still compiles. */
+#define _POSIX_C_SOURCE 200809L
+
 #include "gitleaks.h"
 
 #include <errno.h>
