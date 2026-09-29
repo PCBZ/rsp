@@ -27,5 +27,19 @@ expect 1 "trailing characters after the object" "$ok trailing"
 expect 0 "an escaped NUL in the content" \
     '{"rsp_version":"0.1","hook":"on_chunk","content":"a\\u0000b"}'
 
+# Bounded, because failing here is a hang rather than a wrong answer.
+loud=$(cd "$(dirname "$0")" && pwd)/loud-gitleaks.sh
+printf '%b' "$ok" | RSP_GITLEAKS=$loud "$binary" >/dev/null 2>&1 &
+pid=$!
+(sleep 30; kill -9 "$pid" 2>/dev/null) 2>/dev/null &
+guard=$!
+wait "$pid"
+got=$?
+{ kill "$guard"; wait "$guard"; } 2>/dev/null
+if [ "$got" != 0 ]; then
+    echo "FAIL a tool with 400KB to say on stderr: exited $got, wanted 0"
+    failures=$((failures + 1))
+fi
+
 [ "$failures" = 0 ] && echo ok
 exit $((failures > 0))

@@ -38,7 +38,12 @@ final class Gitleaks {
         List<String> command = new ArrayList<>();
         command.add(binary());
         command.addAll(args);
-        Process child = new ProcessBuilder(command).start();
+        // Inherited, not piped: a pipe nobody reads stops the tool once it
+        // fills, and gitleaks writes what it scanned to stderr. Diagnostics
+        // belong on ours anyway, where they are not the protocol's (T2, E3).
+        Process child = new ProcessBuilder(command)
+                .redirectError(ProcessBuilder.Redirect.INHERIT)
+                .start();
 
         Thread writer = new Thread(() -> {
             try (OutputStream stdin = child.getOutputStream()) {

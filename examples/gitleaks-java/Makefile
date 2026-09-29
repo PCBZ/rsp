@@ -17,11 +17,15 @@ classes/Main.class: $(wildcard src/*.java) $(GSON)
 	mkdir -p classes
 	$(JAVAC) -Xlint:all,-classfile -Werror -cp $(GSON) -d classes src/*.java
 
+# Verified before it is put where the build looks: make does not delete a
+# target whose recipe failed, so checking in place would leave a rejected jar
+# that the next make finds present and does not check again.
 $(GSON):
 	mkdir -p lib
-	curl -sSfL -o $@ \
+	curl -sSfL -o $@.unverified \
 	    https://repo1.maven.org/maven2/com/google/code/gson/gson/$(GSON_VERSION)/gson-$(GSON_VERSION).jar
-	echo "$(GSON_SHA)  $@" | shasum -a 256 --check --strict -
+	echo "$(GSON_SHA)  $@.unverified" | shasum -a 256 --check --strict - || { rm -f $@.unverified; exit 1; }
+	mv $@.unverified $@
 
 .PHONY: test clean
 test: rsp-gitleaks-java
