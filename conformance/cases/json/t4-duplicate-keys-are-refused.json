@@ -1,0 +1,10 @@
+{
+  "name": "t4-duplicate-keys-are-refused",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Last wins in three languages and first wins in others, so the same message is two chunks. Answering either is answering a question the sender did not ask.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"harmless\",\"content\":\"AKIALALEMEL33243OLIB\"}",
+  "expect": {
+    "refused": true
+  }
+}

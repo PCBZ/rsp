@@ -1,0 +1,12 @@
+{
+  "name": "t4-a-doubled-backslash-is-not-an-escape",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Six ordinary characters. A scan looking for \\\\u without counting the backslashes before it reads a lone surrogate that was never written.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"\\\\\\\\ud800\"}",
+  "expect": {
+    "response": {
+      "verdict": "ALLOW"
+    }
+  }
+}

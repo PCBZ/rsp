@@ -1,0 +1,12 @@
+{
+  "name": "t4-digits-in-the-content-are-not-numbers",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "The bound is on numbers the message carries, not on digits the chunk mentions. A gate reading the text without minding string boundaries refuses content for what it says.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"id 12345678901234567890\"}",
+  "expect": {
+    "response": {
+      "verdict": "ALLOW"
+    }
+  }
+}

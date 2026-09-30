@@ -92,5 +92,16 @@ REGISTRY = tuple(
 )
 
 
+ANY = "any"
+"""A case for every implementation, whatever it wraps: T4 binds the protocol
+rather than a role.
+
+rsp-replay is not among them, and not by exception: it ships no manifest,
+because a plugin whose purpose is to misbehave on request is an instrument
+rather than an implementation."""
+
+
 def for_role(role: str) -> list[Implementation]:
+    if role == ANY:
+        return list(REGISTRY)
     return [implementation for implementation in REGISTRY if implementation.role == role]

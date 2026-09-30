@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "protocol.h"
+#include "strict.h"
 
 static char *read_all(size_t *length) {
     size_t held = 0, room = 8192;
@@ -53,11 +54,21 @@ int main(void) {
         free(raw);
         return 1;
     }
+    if (rsp_strict_text(raw) != 0) {
+        free(raw);
+        return 1;
+    }
     /* Terminated, because cJSON_Parse accepts trailing characters and one
      * object is the whole request (T2). */
     cJSON *request = cJSON_ParseWithOpts(raw, NULL, 1);
     if (!request) {
         fprintf(stderr, "rsp-gitleaks-c: the request is not JSON\n");
+        free(raw);
+        return 1;
+    }
+
+    if (rsp_strict_tree(request) != 0) {
+        cJSON_Delete(request);
         free(raw);
         return 1;
     }

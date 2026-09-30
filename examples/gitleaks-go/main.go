@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -15,8 +16,12 @@ func main() {
 }
 
 func answer() error {
+	raw, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return err
+	}
 	var request Request
-	if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+	if err := strictUnmarshal(raw, &request); err != nil {
 		return err
 	}
 	response, err := respond(request)

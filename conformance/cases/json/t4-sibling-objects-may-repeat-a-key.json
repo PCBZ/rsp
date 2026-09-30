@@ -1,0 +1,12 @@
+{
+  "name": "t4-sibling-objects-may-repeat-a-key",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "One key per object, not per depth. A gate tracking only how deep it is refuses two siblings that each carry the same field, which is ordinary JSON.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"nothing here\",\"a\":{\"n\":1},\"b\":{\"n\":2}}",
+  "expect": {
+    "response": {
+      "verdict": "ALLOW"
+    }
+  }
+}

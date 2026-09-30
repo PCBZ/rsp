@@ -7,13 +7,13 @@ CFLAGS += $(if $(PREFIX),-I$(PREFIX)/include)
 LDFLAGS += $(if $(PREFIX),-L$(PREFIX)/lib)
 LDLIBS = -lcjson
 
-rsp-gitleaks-c: main.o protocol.o gitleaks.o spawn.o
+rsp-gitleaks-c: main.o protocol.o gitleaks.o spawn.o strict.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-test-gitleaks: test_gitleaks.o protocol.o gitleaks.o spawn.o
+test-gitleaks: test_gitleaks.o protocol.o gitleaks.o spawn.o strict.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-main.o protocol.o gitleaks.o spawn.o test_gitleaks.o: gitleaks.h protocol.h spawn.h
+main.o protocol.o gitleaks.o spawn.o strict.o test_gitleaks.o: gitleaks.h protocol.h spawn.h strict.h
 
 .PHONY: test clean
 test: test-gitleaks rsp-gitleaks-c

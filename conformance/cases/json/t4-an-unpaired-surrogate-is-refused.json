@@ -1,0 +1,10 @@
+{
+  "name": "t4-an-unpaired-surrogate-is-refused",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "A lone surrogate survives parsing and cannot be written back as UTF-8, so a plugin that accepts one holds content it can no longer put anywhere (M1).",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"\\ud800\"}",
+  "expect": {
+    "refused": true
+  }
+}

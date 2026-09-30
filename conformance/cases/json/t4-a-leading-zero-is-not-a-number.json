@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-leading-zero-is-not-a-number",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "01 is not a number in the grammar. A parser that reads it as 1 and one that refuses the message are both defensible, which is the problem.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\",\"count\":01}",
+  "expect": {
+    "refused": true
+  }
+}
