@@ -1,0 +1,12 @@
+{
+  "name": "metadata-a-plugin-does-not-read",
+  "clause": "M2, D8",
+  "plugin": "any",
+  "note": "A null and a number among fields no plugin needs. M2 makes metadata readable and never required, and D8 says ignore what you do not recognise — so a plugin that declares a shape for a field it never reads turns the host's optional field into a requirement, and blocks the chunk when the host fills it in differently.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"nothing here\",\"metadata\":{\"source\":null,\"node_id\":\"abc\",\"score\":0.5,\"depth\":3}}",
+  "expect": {
+    "response": {
+      "verdict": "ALLOW"
+    }
+  }
+}

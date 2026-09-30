@@ -16,3 +16,4 @@ examples/gitleaks-c/test-gitleaks
 examples/gitleaks-java/classes/
 examples/gitleaks-java/lib/
 examples/gitleaks-java/rsp-gitleaks-java
+examples/gitleaks-swift/.build/
