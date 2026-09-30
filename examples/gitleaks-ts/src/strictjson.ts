@@ -56,14 +56,26 @@ function readString(raw: string, start: number): [string, number] {
   return [raw.slice(start + 1, at), at + 1];
 }
 
-/** A lone surrogate parses and cannot be encoded, so it is not a message (M1). */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/**
+ * A lone surrogate parses and cannot be encoded, so it is not a message (M1).
+ *
+ * Keys as well as values: a name is a string the message carries, and the
+ * host has to write this back.
+ */
 function refuseUnsafe(value: unknown): void {
   if (typeof value === "string") {
-    if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value)) {
+    if (LONE_SURROGATE.test(value)) {
       throw new Error("unpaired surrogate");
     }
+  } else if (Array.isArray(value)) {
+    value.forEach(refuseUnsafe);
   } else if (typeof value === "object" && value !== null) {
-    Object.values(value).forEach(refuseUnsafe);
+    for (const [name, item] of Object.entries(value)) {
+      refuseUnsafe(name);
+      refuseUnsafe(item);
+    }
   }
 }
 
