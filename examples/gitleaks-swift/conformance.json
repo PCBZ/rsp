@@ -1,3 +1,4 @@
 { "name": "rsp-gitleaks-swift", "role": "gitleaks",
   "source": ["{dir}/.build/release/rsp-gitleaks-swift"],
-  "toolchain": ["{dir}/.build/release/rsp-gitleaks-swift"], "wraps": ["gitleaks"] }
+  "toolchain": ["{dir}/.build/release/rsp-gitleaks-swift"], "wraps": ["gitleaks"],
+  "platforms": ["darwin"] }

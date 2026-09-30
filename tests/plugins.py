@@ -43,6 +43,14 @@ class Implementation:
     source: tuple[str, ...]
     toolchain: tuple[str, ...]
     wraps: tuple[str, ...] = ()
+    platforms: tuple[str, ...] = ()
+    """Where this one can run at all, empty meaning anywhere.
+
+    Said out loud so that a plugin absent by design and a plugin absent by
+    accident are different answers. RSP_REQUIRE_ALL_PLUGINS exists because a
+    silently skipped plugin proves nothing, and a platform it was never going
+    to run on would have been exactly that silence.
+    """
 
     @property
     def built(self) -> str | None:
@@ -58,12 +66,28 @@ class Implementation:
         return self.wraps if self.built else self.toolchain + self.wraps
 
     @property
+    def supported(self) -> bool:
+        return not self.platforms or sys.platform in self.platforms
+
+    @property
     def installed(self) -> bool:
         return all(_resolve(tool) for tool in self.tools)
 
     @property
     def missing(self) -> str:
         return ", ".join(tool for tool in self.tools if not _resolve(tool))
+
+    def unavailable(self) -> str | None:
+        """Why this cannot run here, or None.
+
+        A declared platform is a reason `REQUIRED` accepts; anything else is a
+        plugin that should have been there.
+        """
+        if not self.supported:
+            return f"declared for {', '.join(self.platforms)}, not {sys.platform}"
+        if not self.installed:
+            return f"not installed: {self.missing}"
+        return None
 
 
 def _resolve(tool: str) -> str | None:
@@ -82,6 +106,7 @@ def _load(path: pathlib.Path) -> Implementation:
         source=tuple(token.format(**fill) for token in declared["source"]),
         toolchain=tuple(token.format(**fill) for token in declared["toolchain"]),
         wraps=tuple(declared.get("wraps", ())),
+        platforms=tuple(declared.get("platforms", ())),
     )
 
 

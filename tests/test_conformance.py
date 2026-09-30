@@ -45,9 +45,10 @@ def test_case(
     record_property("clause", case["clause"])
     record_property("plugin", implementation.name)
     command = list(implementation.command)
-    if not implementation.installed:
-        message = f"not installed: {implementation.missing}"
-        pytest.fail(message) if REQUIRED else pytest.skip(message)
+    if why := implementation.unavailable():
+        if implementation.supported and REQUIRED:
+            pytest.fail(why)
+        pytest.skip(why)
 
     outcome = check(case, command, escaped=escaped)
 

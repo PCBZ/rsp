@@ -130,9 +130,10 @@ def _guard_the_environment(request: pytest.FixtureRequest) -> None:
     implementation = callspec.params.get("implementation") if callspec else None
     if implementation is not None:
         request.getfixturevalue("record_property")("plugin", implementation.name)
-        if not implementation.installed:
-            message = f"not installed: {implementation.missing}"
-            pytest.fail(message) if REQUIRED else pytest.skip(message)
+        if why := implementation.unavailable():
+            if implementation.supported and REQUIRED:
+                pytest.fail(why)
+            pytest.skip(why)
     if CORPUS is None:
         pytest.fail("no corpus") if REQUIRED else pytest.skip("no corpus")
 

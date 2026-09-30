@@ -105,14 +105,14 @@ jobs:
         working-directory: examples/gitleaks-java
         run: make test
 
-      # macOS has Swift already; the Linux runner does not, and this is the
-      # largest toolchain this job installs.
-      - uses: swift-actions/setup-swift@682457186b71c25a884c45c06f859febbe259240 # v2.3.0
-        if: runner.os == 'Linux'
-        with:
-          swift-version: '6.0'
-
+      # macOS only, and the manifest says so rather than this file: the
+      # runner ships Swift, while Linux would mean a 748MB tarball or
+      # swift-actions/setup-swift, whose key import is currently broken
+      # upstream. What Swift demonstrates — that the byte discipline can be
+      # the compiler's — it demonstrates on one platform, and the tests
+      # skipping elsewhere say which reason it was.
       - name: Build and test the Swift plugin
+        if: runner.os == 'macOS'
         working-directory: examples/gitleaks-swift
         run: make test
 
