@@ -244,3 +244,36 @@ def test_a_rewritten_source_is_read_again(tmp_path: pathlib.Path) -> None:
 
     source.write_text("a\nb\nc\n", encoding="utf-8")
     assert _lines_of(node) == "1-3"
+
+
+def test_chunking_does_not_depend_on_where_the_corpus_lives(tmp_path: pathlib.Path) -> None:
+    """The splitter subtracts a document's metadata from the chunk budget.
+
+    An absolute path in there makes the same corpus chunk differently in two
+    checkouts, so a scanner is handed different text in one chunk — a verdict
+    that moved for a reason nobody chose. Through `documents`, because a test
+    that builds its own exclusion lists asserts nothing about the code.
+    """
+    from llama_index.core.node_parser import SentenceSplitter
+
+    from rsp.ingest import CHUNK
+
+    text = (DOCS / "runbook-backups.md").read_text(encoding="utf-8")
+    boundaries = set()
+    for depth in (1, 12):
+        # Two checkouts of one corpus, at directory names of different length.
+        corpus = tmp_path.joinpath(*["d" * 40] * depth) / "sample-docs"
+        corpus.mkdir(parents=True)
+        (corpus / "runbook-backups.md").write_text(text, encoding="utf-8")
+
+        nodes = SentenceSplitter(chunk_size=CHUNK, chunk_overlap=0)(documents(corpus))
+        boundaries.add(tuple(node.start_char_idx for node in nodes))
+
+    assert len(boundaries) == 1, f"two checkouts, {len(boundaries)} chunkings: {boundaries}"
+
+
+def test_the_path_is_kept_out_of_what_a_document_carries() -> None:
+    """Both lists, which is also what Q8 asks of anything on a node."""
+    for document in documents(DOCS):
+        assert "file_path" in document.excluded_embed_metadata_keys
+        assert "file_path" in document.excluded_llm_metadata_keys
