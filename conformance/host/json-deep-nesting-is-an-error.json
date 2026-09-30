@@ -1,0 +1,19 @@
+{
+  "name": "json-deep-nesting-is-an-error",
+  "clause": "T4, E1, E2",
+  "kind": "host",
+  "note": "A hundred thousand open brackets is about 200KB, well under any output cap: a cap bounds size and says nothing about depth. A host whose parser exhausts its stack here has let a plugin choose when it falls over.",
+  "plugin": {
+    "behaviour": "deep",
+    "depth": 100000
+  },
+  "request": {
+    "rsp_version": "0.1",
+    "hook": "on_chunk",
+    "content": "ordinary text"
+  },
+  "expect": {
+    "verdict": "BLOCK",
+    "content": "unchanged"
+  }
+}

@@ -157,3 +157,26 @@ def test_output_that_is_only_non_json_whitespace_is_malformed() -> None:
 
     assert outcome is Outcome.MALFORMED
     assert payload is None
+
+
+@pytest.mark.parametrize("depth", [2_000, 100_000], ids=["past the limit", "far past it"])
+def test_nesting_deeper_than_the_stack_is_malformed(depth: int) -> None:
+    """A size cap does not bound depth: 200KB of brackets is well inside it."""
+    outcome, payload = decode(('{"verdict":' + "[" * depth + "]" * depth + "}").encode())
+
+    assert outcome is Outcome.MALFORMED
+    assert payload is None
+
+
+def test_a_request_nested_deeper_than_the_stack_is_not_sent() -> None:
+    """The same in the other direction, where `call` promises never to raise."""
+    nest: dict = {}
+    cursor = nest
+    for _ in range(2_000):
+        cursor["m"] = {}
+        cursor = cursor["m"]
+
+    reply = call(ECHO, {"rsp_version": "0.1", "hook": "on_chunk", "content": "x", "metadata": nest})
+
+    assert reply.outcome is Outcome.UNENCODABLE
+    assert reply.payload is None

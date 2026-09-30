@@ -22,7 +22,9 @@ CASES = sorted((ROOT / "conformance" / "host").glob("*.json"))
 REPLAY = [sys.executable, str(ROOT / "plugins/rsp-replay/main.py")]
 # What rsp-replay understands. It crashes on anything else, so a typo would pass
 # every crash case; checked here because the side that starts nothing can report.
-BEHAVIOURS = frozenset({"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw", "flood"})
+BEHAVIOURS = frozenset(
+    {"crash", "hang", "garbage", "chatty", "silent", "noisy", "raw", "flood", "deep"}
+)
 NEEDS_REPLY = frozenset({"noisy"})
 
 
@@ -32,7 +34,9 @@ def _checked(script: dict[str, Any], where: str) -> dict[str, Any]:
         pytest.fail(f"{where}: no such behaviour {behaviour!r}")
     if (behaviour is None or behaviour in NEEDS_REPLY) and "reply" not in script:
         pytest.fail(f"{where}: needs a reply")
-    if unknown := sorted(set(script) - {"behaviour", "reply", "raw", "declaration", "on_error"}):
+    if unknown := sorted(
+        set(script) - {"behaviour", "reply", "raw", "depth", "declaration", "on_error"}
+    ):
         pytest.fail(f"{where}: unknown key(s) {', '.join(unknown)}")
     return script
 
