@@ -236,11 +236,13 @@ def test_lines_without_findings_come_back_unchanged(
 @pytest.mark.parametrize("path", CASES, ids=_ids)
 def test_every_implementation_of_the_role_answers_identically(path: pathlib.Path) -> None:
     """A protocol whose implementations disagree is a suggestion."""
-    installed = [one for one in IMPLEMENTATIONS if one.installed]
-    if len(installed) < 2:
+    # `unavailable`, not `installed`: one declared for another platform is
+    # not a disagreement, and asking it anything here fails the handshake.
+    here = [one for one in IMPLEMENTATIONS if one.unavailable() is None]
+    if len(here) < 2:
         pytest.skip("needs two implementations of the role")
 
-    answers = {one.name: answer(path, one) for one in installed}
+    answers = {one.name: answer(path, one) for one in here}
     verdicts = {name: found.result.verdict for name, found in answers.items()}
     contents = {name: found.result.content for name, found in answers.items()}
 

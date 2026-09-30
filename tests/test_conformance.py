@@ -6,6 +6,7 @@ runs too. A stand-in for that kit, so nothing here imports rsp.
 
 from __future__ import annotations
 
+import ast
 import json
 import pathlib
 from collections.abc import Callable
@@ -53,3 +54,30 @@ def test_case(
     outcome = check(case, command, escaped=escaped)
 
     assert outcome.passed, outcome.why
+
+
+def test_nothing_asks_a_plugin_declared_for_another_platform() -> None:
+    """Every site that picks implementations asks `unavailable`, not `installed`.
+
+    One that did not was found by CI rather than here: it built a Runtime from
+    everything `installed` said yes to, and a manifest declaring another
+    platform still says yes — the handshake is where it went wrong, a hundred
+    and forty-five times.
+
+    Read as syntax rather than as text, or this file's own prose about
+    `installed` is a finding against itself.
+    """
+    offenders: dict[str, list[int]] = {}
+    for path in sorted((ROOT / "tests").glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        lines = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr == "installed"
+        ]
+        if lines:
+            offenders[path.name] = lines
+    assert not offenders, (
+        f"filtering on `installed` at {offenders}, which is true for a plugin "
+        "this platform cannot run"
+    )
