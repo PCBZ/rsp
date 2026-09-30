@@ -23,8 +23,10 @@ _WHITESPACE = " \t\n\r"
 def _sendable(value: Any, seen: frozenset[int] = frozenset()) -> None:
     """Raise ValueError if any part of a request would break T4 on the wire.
 
-    `seen` holds the containers above this one, so a request nested inside itself
-    fails as a ValueError rather than a RecursionError, which `call` cannot catch (E2).
+    `seen` holds the containers above this one, so a request nested inside
+    itself is named rather than reaching the stack limit. Depth that is merely
+    great still raises RecursionError, which `call` catches alongside the rest
+    (E2).
     """
     if isinstance(value, (Mapping, list, tuple)):
         if id(value) in seen:
@@ -105,7 +107,11 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
 
     try:
         payload, end = _DECODER.raw_decode(body)
-    except ValueError:  # JSONDecodeError, or a value the hooks above refuse
+    except (ValueError, RecursionError):
+        # ValueError: JSONDecodeError, or a value the hooks above refuse.
+        # RecursionError: nesting deep enough to exhaust the stack, which the
+        # output cap does not bound — 200KB of brackets is well under it. A
+        # plugin does not get to choose when the host falls over (D2).
         return Outcome.MALFORMED, None
 
     if body[end:].strip(_WHITESPACE):
@@ -114,7 +120,7 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
         return Outcome.MALFORMED, None  # a list or a bare string is not a response
     try:
         encode(payload)  # `\ud800` parses, and cannot be written back as UTF-8 (M1)
-    except ValueError:
+    except (ValueError, RecursionError):
         return Outcome.MALFORMED, None
 
     return Outcome.OK, payload
@@ -145,7 +151,7 @@ def call(
     """
     try:
         payload_bytes = encode(request)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         # No plugin is at fault and none ran, but there is no verdict either (E3).
         return Reply(Outcome.UNENCODABLE, None, None)
 

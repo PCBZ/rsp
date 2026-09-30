@@ -67,6 +67,11 @@ def main() -> None:
         case "raw":
             # Verbatim, so a case can send what json.dumps would not.
             sys.stdout.write(plan["raw"] + "\n")
+        case "deep":
+            # Built here rather than written out: a case saying 100000 is
+            # readable where 200KB of brackets is not.
+            depth = plan["depth"]
+            sys.stdout.write('{"verdict":' + "[" * depth + "]" * depth + "}\n")
         case "noisy":
             # A valid answer under a flood of diagnostics, which are not the protocol's (E3).
             print("x" * 100_000, file=sys.stderr)
