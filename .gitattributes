@@ -1,0 +1,5 @@
+# Linguist counts examples/ as documentation and leaves it out of the language
+# bar. Here the six adapters under it are implementations: the conformance kit
+# runs them as plugins, and the claim this repository makes is that a plugin is
+# a command in any language. A bar reading 100% Python says the opposite.
+examples/** linguist-documentation=false
