@@ -52,10 +52,21 @@ def documents(directory: pathlib.Path) -> list[Any]:
     found = sorted(p for p in directory.rglob("*") if p.suffix in _READABLE and p.is_file())
     if not found:
         raise FileNotFoundError(f"{directory}: nothing to ingest")
-    return [
-        Document(text=path.read_text(encoding="utf-8"), metadata={"file_path": str(path)})
-        for path in found
-    ]
+    return [_document(Document, path) for path in found]
+
+
+def _document(Document: Any, path: pathlib.Path) -> Any:  # noqa: N803
+    """One file, with its path kept out of the text the splitter budgets for.
+
+    The splitter subtracts a document's metadata from the chunk size, so an
+    absolute path in there chunks the same corpus differently depending on
+    where it is checked out — and a scanner then sees different text in one
+    chunk. Excluding it is also what Q8 asks of anything a node carries.
+    """
+    document = Document(text=path.read_text(encoding="utf-8"), metadata={"file_path": str(path)})
+    for excluded in (document.excluded_embed_metadata_keys, document.excluded_llm_metadata_keys):
+        excluded.append("file_path")
+    return document
 
 
 def _newlines(source: str) -> tuple[int, ...]:
