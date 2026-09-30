@@ -30,76 +30,71 @@ public enum StrictJson {
         guard String(bytes: raw, encoding: .utf8) != nil else {
             throw Refused(description: "the request is not UTF-8")
         }
-        try refuseRepeatedKeys(raw)
-        try refuseNumberSyntax(raw)
+        try refuseLeniencies(raw)
 
         return try JSONDecoder().decode(T.self, from: Data(raw))
     }
 
-    /// Read from the bytes, because the parser has resolved the repeat by the
-    /// time anyone can ask. The delimiters are ASCII and a UTF-8 sequence
-    /// cannot contain one, so no decoding is needed to find them — which is
-    /// also why this does not go through UTF-16.
+    /// One pass over the bytes, refusing a repeated key and a number the
+    /// grammar does not allow.
     ///
-    /// Keys are unescaped before comparison: `\u0063ontent` and `content` are
-    /// one key to every parser and two to anything comparing what was written.
-    private static func refuseRepeatedKeys(_ raw: [UInt8]) throws {
-        var seen: [Set<String>] = []
+    /// The delimiters are ASCII and no UTF-8 sequence contains one, so
+    /// nothing needs decoding to be found — which is also why this does not
+    /// go through UTF-16. Keys are unescaped before comparison: `\u0063ontent`
+    /// and `content` are one key to every parser, and two to anything
+    /// comparing what was written.
+    private static func refuseLeniencies(_ raw: [UInt8]) throws {
+        var open: [Set<String>] = []
         var at = 0
 
         while at < raw.count {
             let byte = raw[at]
             if byte == quote {
                 let (literal, next) = readString(raw, at)
-                at = next
-                var after = at
+                var after = next
                 while after < raw.count, isSpace(raw[after]) { after += 1 }
-                if after < raw.count, raw[after] == colon, !seen.isEmpty {
+                // A key is a string with a colon after it.
+                if after < raw.count, raw[after] == colon, !open.isEmpty {
                     let name = unescape(literal)
-                    if seen[seen.count - 1].contains(name) {
+                    if !open[open.count - 1].insert(name).inserted {
                         throw Refused(description: "repeated key \"\(name)\"")
                     }
-                    seen[seen.count - 1].insert(name)
                 }
-                continue
+                at = next
+            } else if byte == openBrace {
+                open.append([])
+                at += 1
+            } else if byte == closeBrace {
+                if !open.isEmpty { open.removeLast() }
+                at += 1
+            } else if isDigit(byte) || byte == minus, at == 0 || isBoundary(raw[at - 1]) {
+                at = try endOfNumber(raw, at)
+            } else {
+                at += 1
             }
-            if byte == openBrace { seen.append([]) }
-            if byte == closeBrace, !seen.isEmpty { seen.removeLast() }
-            at += 1
         }
     }
 
-    /// Outside strings only, or a chunk mentioning a long number is refused
-    /// for what it says rather than for how the message is written.
-    private static func refuseNumberSyntax(_ raw: [UInt8]) throws {
-        var at = 0
-        while at < raw.count {
-            if raw[at] == quote {
-                at = readString(raw, at).1
-                continue
-            }
-            let starts = isDigit(raw[at]) || raw[at] == minus
-            if starts, at == 0 || isBoundary(raw[at - 1]) {
-                var end = raw[at] == minus ? at + 1 : at
-                let first = end
-                while end < raw.count, isDigit(raw[end]) { end += 1 }
-                if end > first {
-                    let digits = String(decoding: raw[first..<end], as: UTF8.self)
-                    if digits.count > 1, digits.hasPrefix("0") {
-                        throw Refused(description: "a number may not have a leading zero")
-                    }
-                    if end == raw.count || !isFractional(raw[end]) {
-                        let whole = String(decoding: raw[at..<end], as: UTF8.self)
-                        guard let value = Int(whole), abs(value) <= safeInteger else {
-                            throw Refused(description: "\(whole) is outside ±(2^53 - 1)")
-                        }
-                    }
-                    at = end
-                    continue
-                }
-            }
-            at += 1
+    /// Past one number, having refused a leading zero and an integer
+    /// JavaScript would round. Outside strings only, or a chunk mentioning a
+    /// long number is refused for what it says.
+    private static func endOfNumber(_ raw: [UInt8], _ start: Int) throws -> Int {
+        var end = raw[start] == minus ? start + 1 : start
+        let first = end
+        while end < raw.count, isDigit(raw[end]) { end += 1 }
+        guard end > first else { return start + 1 }
+
+        let digits = String(decoding: raw[first..<end], as: UTF8.self)
+        if digits.count > 1, digits.hasPrefix("0") {
+            throw Refused(description: "a number may not have a leading zero")
         }
+        if end == raw.count || !isFractional(raw[end]) {
+            let whole = String(decoding: raw[start..<end], as: UTF8.self)
+            guard let value = Int(whole), abs(value) <= safeInteger else {
+                throw Refused(description: "\(whole) is outside ±(2^53 - 1)")
+            }
+        }
+        return end
     }
 
     /// Where a string literal ends, skipping what a backslash protects.
