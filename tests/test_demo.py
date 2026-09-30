@@ -28,9 +28,10 @@ SECRETS = ("AKIA47CQZHT2MVPF3JXB", "b3BlbnNzaC1rZXktdjEAAAAABG5vbmU")
 @pytest.fixture(scope="module")
 def gitleaks() -> None:
     wrapper = next(one for one in for_role("gitleaks") if one.name == "rsp-gitleaks-ts")
-    if not wrapper.installed:
-        message = f"not installed: {wrapper.missing}"
-        pytest.fail(message) if REQUIRED else pytest.skip(message)
+    if why := wrapper.unavailable():
+        if wrapper.supported and REQUIRED:
+            pytest.fail(why)
+        pytest.skip(why)
 
 
 def test_the_planted_secrets_are_redacted_and_nothing_else_is(gitleaks: None) -> None:

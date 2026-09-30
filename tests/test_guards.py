@@ -138,8 +138,8 @@ def test_a_third_party_detector_through_the_whole_chain(
     implementation: Implementation,
 ) -> None:
     """Nothing of ours detects; once per implementation, as one language proves only itself."""
-    if not implementation.installed:
-        pytest.skip(f"not installed: {implementation.missing}")
+    if why := implementation.unavailable():
+        pytest.skip(why)
     runtime = Runtime([Plugin(name=implementation.name, command=list(implementation.command))])
     key = "AKIALALEMEL33243OLIB"
 

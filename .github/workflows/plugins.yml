@@ -105,6 +105,17 @@ jobs:
         working-directory: examples/gitleaks-java
         run: make test
 
+      # macOS only, and the manifest says so rather than this file: the
+      # runner ships Swift, while Linux would mean a 748MB tarball or
+      # swift-actions/setup-swift, whose key import is currently broken
+      # upstream. What Swift demonstrates — that the byte discipline can be
+      # the compiler's — it demonstrates on one platform, and the tests
+      # skipping elsewhere say which reason it was.
+      - name: Build and test the Swift plugin
+        if: runner.os == 'macOS'
+        working-directory: examples/gitleaks-swift
+        run: make test
+
       - name: Install cJSON
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -162,6 +173,7 @@ jobs:
           RSP_PLUGIN_GITLEAKS_RS: ${{ runner.temp }}/rsp-gitleaks-rs
           RSP_PLUGIN_GITLEAKS_C: ${{ github.workspace }}/examples/gitleaks-c/rsp-gitleaks-c
           RSP_PLUGIN_GITLEAKS_JAVA: ${{ github.workspace }}/examples/gitleaks-java/rsp-gitleaks-java
+          RSP_PLUGIN_GITLEAKS_SWIFT: ${{ github.workspace }}/examples/gitleaks-swift/.build/release/rsp-gitleaks-swift
 
       # always(): a failed run's report is the one worth reading. One OS is enough.
       - if: always() && matrix.runner == 'ubuntu-latest'

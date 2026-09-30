@@ -154,7 +154,7 @@ def test_the_readme_example_span_is_valid() -> None:
 
 
 ADAPTERS = sorted(p.parent.name for p in ROOT.glob("examples/*/conformance.json"))
-WORDS = WORDS | {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+WORDS = WORDS | {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}
 
 
 def test_the_readme_lists_every_adapter_that_exists() -> None:

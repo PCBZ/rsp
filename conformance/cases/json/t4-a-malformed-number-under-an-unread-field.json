@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-malformed-number-under-an-unread-field",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "The field is one no plugin reads. A decoder that validates only what it maps to a type accepts this and refuses the same number under a field it wanted, so how strict it is depends on the reader's own struct rather than on the grammar.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\",\"unread\":01}",
+  "expect": {
+    "refused": true
+  }
+}
