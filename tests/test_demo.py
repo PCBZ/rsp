@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import pathlib
+import re
 import shutil
 import sys
 from typing import TYPE_CHECKING, Any
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 
 DOCS = ROOT / "demo" / "sample-docs"
 CONFIG = ROOT / "demo" / "rsp.toml"
+TRANSCRIPTS = (ROOT / "README.md", ROOT / "demo" / "README.md")
 
 # What was planted, and where. Nothing else in the corpus may be flagged.
 PLANTED = {"deploy-notes.md": "aws-access-token", "runbook-backups.md": "private-key"}
@@ -137,6 +139,35 @@ def test_the_command_prints_the_summary(gitleaks: None, capsys: pytest.CaptureFi
     assert "REDACT" in printed and "aws-access-token" in printed
     for secret in SECRETS:
         assert secret not in printed, "a report that quotes the secret is another copy"
+
+
+def _shown(path: pathlib.Path) -> list[tuple[list[str], str]]:
+    """Every `rsp ingest` transcript in a file, as the argv and what follows it."""
+    blocks = re.findall(r"```console\n(.*?)```", path.read_text(encoding="utf-8"), re.DOTALL)
+    found = []
+    for block in blocks:
+        command, *printed = block.splitlines()
+        argv = command.removeprefix("$ ").split()
+        if argv[:2] == ["rsp", "ingest"]:
+            found.append((argv[1:], "\n".join(printed)))
+    return found
+
+
+@pytest.mark.parametrize("path", TRANSCRIPTS, ids=lambda path: str(path.relative_to(ROOT)))
+def test_a_transcript_prints_what_the_command_prints(
+    gitleaks: None,
+    path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A reader can run the first thing on the page, and a stale line range says they cannot."""
+    monkeypatch.chdir(ROOT)  # a transcript's paths are the repository root's
+    shown = _shown(path)
+    assert shown, f"{path.name} has no `rsp ingest` transcript, or it stopped being recognised"
+
+    for argv, printed in shown:
+        assert main(argv) == 0
+        assert capsys.readouterr().out.rstrip("\n") == printed
 
 
 def test_the_command_explains_a_missing_extra(
