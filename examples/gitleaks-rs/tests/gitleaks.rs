@@ -86,3 +86,34 @@ fn drops_a_column_that_cannot_be_added_to() {
         assert!(to_spans(&[case], KEY).is_empty());
     }
 }
+
+#[test]
+fn many_distinct_keys_do_not_cost_quadratically() {
+    // A ratio rather than a duration: a wall clock measures the machine the
+    // test happens to run on, and an unoptimised build on a loaded runner has
+    // little room under any fixed bound. Ten times the keys costs ten times
+    // linear and a hundred times quadratic, and a load that slows one
+    // measurement slows the one beside it.
+    fn spent(keys: usize) -> std::time::Duration {
+        let mut message = String::from(r#"{"rsp_version":"0.1","hook":"on_chunk","content":"x""#);
+        for index in 0..keys {
+            message.push_str(&format!(",\"k{index}\":{index}"));
+        }
+        message.push('}');
+
+        let started = std::time::Instant::now();
+        let parsed: Result<serde_json::Value, _> = rsp_gitleaks::strictjson::from_str(&message);
+        let elapsed = started.elapsed();
+        assert!(parsed.is_ok(), "{keys} distinct keys is a valid message");
+        elapsed
+    }
+
+    let few = spent(4_000);
+    let many = spent(40_000);
+    let growth = many.as_secs_f64() / few.as_secs_f64();
+
+    assert!(
+        growth < 30.0,
+        "ten times the keys cost {growth:.0} times the work ({few:?} then {many:?})"
+    );
+}

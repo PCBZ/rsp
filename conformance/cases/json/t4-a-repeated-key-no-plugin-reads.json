@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-repeated-key-no-plugin-reads",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Neither key is one any plugin needs. A gate that leaves repeats to a typed decoder refuses the ones its struct declares and answers for the rest, so how strict it is depends on what the reader happens to read rather than on the grammar.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"harmless\",\"a\":1,\"a\":2}",
+  "expect": {
+    "refused": true
+  }
+}
