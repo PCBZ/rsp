@@ -1,14 +1,16 @@
-"""The offset table the three adapters share; nothing else checks its transcriptions."""
+"""The offset table every adapter shares; nothing else checks its transcriptions."""
 
 from __future__ import annotations
 
 import json
+import pathlib
 import re
+import subprocess
 
 import jsonschema
 import pytest
 
-from plugins import ROOT
+from plugins import MANIFEST, ROOT
 from rsp.spans import Span, valid_span
 
 TABLE_PATH = ROOT / "examples" / "gitleaks-offsets.json"
@@ -16,16 +18,15 @@ TABLE = json.loads(TABLE_PATH.read_text(encoding="utf-8"))
 CASES = TABLE["tests"]
 
 # A suite that quietly stopped reading the table would still pass its own tests.
-READERS = (
-    "examples/gitleaks-ts/test/gitleaks.test.ts",
-    "examples/gitleaks-go/gitleaks_test.go",
-    "examples/gitleaks-rs/tests/gitleaks.rs",
-)
+ADAPTERS = tuple(path.parent for path in sorted(ROOT.glob(f"examples/*/{MANIFEST}")))
+# Quoted, so a doc comment naming the table is not a reader, nor is
+# `gitleaks-offsets.json.bak`.
+QUOTED = re.compile(r"gitleaks-offsets\.json[\"']")
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["comment"] for c in CASES])
 def test_every_span_is_one_the_host_would_apply(case: dict) -> None:
-    """Otherwise three suites would agree an adapter should produce a span S3 refuses."""
+    """Otherwise every suite would agree an adapter should produce a span S3 refuses."""
     content = case["content"].encode("utf-8")
     for span in case["spans"]:
         assert valid_span(Span(span["start"], span["end"]), content), span
@@ -52,14 +53,28 @@ def test_case_ids_are_unique() -> None:
     assert len(set(ids)) == len(ids)
 
 
-@pytest.mark.parametrize("reader", READERS)
-def test_each_adapter_still_reads_the_table(reader: str) -> None:
-    """Up to the closing quote, so `gitleaks-offsets.json.bak` does not match.
+def _tracked(adapter: pathlib.Path) -> list[pathlib.Path]:
+    """What the repo holds for this adapter, so build output is not searched."""
+    names = subprocess.run(
+        ["git", "ls-files", "-z", str(adapter.relative_to(ROOT))],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    return [ROOT / name.decode() for name in names if name]
+
+
+@pytest.mark.parametrize("adapter", ADAPTERS, ids=lambda path: path.name)
+def test_each_adapter_still_reads_the_table(adapter: pathlib.Path) -> None:
+    """Derived rather than listed: an eighth adapter is covered by shipping its manifest.
 
     A path that resolves nowhere fails that adapter's own suite, which refuses an empty table.
     """
-    text = (ROOT / reader).read_text(encoding="utf-8")
-    assert re.search(r"gitleaks-offsets\.json[\"']", text), "the path stopped pointing at the table"
+    assert any(
+        QUOTED.search(path.read_text(encoding="utf-8", errors="replace"))
+        for path in _tracked(adapter)
+        if path.is_file()
+    ), f"{adapter.name} stopped pointing at the table"
 
 
 def test_the_table_matches_the_schema_it_declares() -> None:
