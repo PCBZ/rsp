@@ -1,0 +1,10 @@
+{
+  "name": "t4-an-unpaired-surrogate-in-a-key",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "A key is a string the message carries, and the host has to write it back. A gate that walks only values refuses the same bytes in a value and answers here, which is the reader's shape deciding what the grammar allows.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"x\",\"\\ud800\":1}",
+  "expect": {
+    "refused": true
+  }
+}
