@@ -7,6 +7,8 @@
 //! into a `Value` either, whose map keeps one of them. So that one is read
 //! from the bytes, as the other six adapters read it.
 
+use std::collections::HashSet;
+
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -28,7 +30,10 @@ pub fn from_str<T: DeserializeOwned>(raw: &str) -> Result<T, Error> {
 /// needs decoding to be found. Keys are unescaped before comparison, because
 /// `\u0063ontent` and `content` are one key to every parser.
 fn no_repeated_keys(raw: &[u8]) -> Result<(), Error> {
-    let mut open: Vec<Vec<String>> = Vec::new();
+    // A set per open object, not a list: `contains` over a list is quadratic
+    // in the keys, and a request with forty thousand of them took a second
+    // and a quarter before any of it was deserialised.
+    let mut open: Vec<HashSet<String>> = Vec::new();
     let mut at = 0;
 
     while at < raw.len() {
@@ -43,16 +48,15 @@ fn no_repeated_keys(raw: &[u8]) -> Result<(), Error> {
                 if after < raw.len() && raw[after] == b':' {
                     if let Some(names) = open.last_mut() {
                         let name = unescape(&literal);
-                        if names.contains(&name) {
+                        if !names.insert(name.clone()) {
                             return Err(format!("repeated key {name:?}").into());
                         }
-                        names.push(name);
                     }
                 }
                 at = next;
             }
             b'{' => {
-                open.push(Vec::new());
+                open.push(HashSet::new());
                 at += 1;
             }
             b'}' => {

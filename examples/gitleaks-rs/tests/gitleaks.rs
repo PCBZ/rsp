@@ -86,3 +86,31 @@ fn drops_a_column_that_cannot_be_added_to() {
         assert!(to_spans(&[case], KEY).is_empty());
     }
 }
+
+#[test]
+fn many_distinct_keys_do_not_cost_quadratically() {
+    // A list of seen names made this a second and a quarter for forty
+    // thousand keys, before any of the message was deserialised. The bound is
+    // generous because this measures a machine; what it rules out is the
+    // shape, which was sixteen times slower for forty times the keys.
+    use std::time::Instant;
+
+    let mut message = String::from(r#"{"rsp_version":"0.1","hook":"on_chunk","content":"x""#);
+    for index in 0..40_000 {
+        message.push_str(&format!(",\"k{index}\":{index}"));
+    }
+    message.push('}');
+
+    let started = Instant::now();
+    let parsed: Result<serde_json::Value, _> = rsp_gitleaks::strictjson::from_str(&message);
+    let spent = started.elapsed();
+
+    assert!(
+        parsed.is_ok(),
+        "forty thousand distinct keys is a valid message"
+    );
+    assert!(
+        spent.as_millis() < 500,
+        "the gate took {spent:?} for forty thousand keys"
+    );
+}
