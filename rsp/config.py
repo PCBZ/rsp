@@ -12,6 +12,7 @@ plugin failing open while the file reads as if it blocks.
 from __future__ import annotations
 
 import math
+import os
 import pathlib
 import tomllib
 from typing import Any
@@ -20,6 +21,7 @@ from rsp.process import DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT
 from rsp.runtime import ConfigError, OnError, Plugin
 
 _TOP_LEVEL = frozenset({"plugins"})
+_SEPARATORS = {"/", os.sep}
 _FIELDS = frozenset({"name", "command", "on_error", "timeout", "max_output"})
 _REQUIRED = ("name", "command")
 
@@ -30,7 +32,7 @@ def _text(value: Any, where: str) -> str:
     return value
 
 
-def _command(value: Any, where: str) -> list[str]:
+def _command(value: Any, where: str, base: pathlib.Path | None) -> list[str]:
     """An argv list, never a string.
 
     A string invites a shell, and splitting it on spaces would make the quoting
@@ -40,7 +42,21 @@ def _command(value: Any, where: str) -> list[str]:
         raise ConfigError(f"{where}: expected a list of arguments, not a string")
     if not isinstance(value, list) or not value:
         raise ConfigError(f"{where}: expected a non-empty list of arguments")
-    return [_text(argument, f"{where}[{at}]") for at, argument in enumerate(value)]
+    return [_beside(_text(argument, f"{where}[{at}]"), base) for at, argument in enumerate(value)]
+
+
+def _beside(argument: str, base: pathlib.Path | None) -> str:
+    """A path in the command, read beside the file that names it.
+
+    Resolved against the process instead, a config works from one directory
+    and the user meets that wherever they put theirs. A separator is what
+    tells a path from a name `PATH` resolves, and from an argument that is no
+    path at all.
+    """
+    if base is None or not any(part in argument for part in _SEPARATORS):
+        return argument
+    path = pathlib.PurePath(argument)
+    return argument if path.is_absolute() else str(base / path)
 
 
 def _on_error(value: Any, where: str) -> OnError:
@@ -71,7 +87,7 @@ def _bytes(value: Any, where: str) -> int:
     return value
 
 
-def _plugin(entry: Any, where: str) -> Plugin:
+def _plugin(entry: Any, where: str, base: pathlib.Path | None) -> Plugin:
     if not isinstance(entry, dict):
         raise ConfigError(f"{where}: expected a table")
     if unknown := sorted(set(entry) - _FIELDS):
@@ -81,15 +97,22 @@ def _plugin(entry: Any, where: str) -> Plugin:
 
     return Plugin(
         name=_text(entry["name"], f"{where}.name"),
-        command=_command(entry["command"], f"{where}.command"),
+        command=_command(entry["command"], f"{where}.command", base),
         on_error=_on_error(entry.get("on_error"), f"{where}.on_error"),
         timeout=_positive(entry.get("timeout", DEFAULT_TIMEOUT), f"{where}.timeout"),
         max_output=_bytes(entry.get("max_output", DEFAULT_MAX_OUTPUT), f"{where}.max_output"),
     )
 
 
-def plugins_from(document: Any, where: str = "config") -> list[Plugin]:
-    """The plugins a mapping describes, in the order it lists them."""
+def plugins_from(
+    document: Any, where: str = "config", base: pathlib.Path | None = None
+) -> list[Plugin]:
+    """The plugins a mapping describes, in the order it lists them.
+
+    `base` is the directory a relative path in a command is read against,
+    default the process's own. A host parsing some other format passes the
+    directory that format came from.
+    """
     if not isinstance(document, dict):
         raise ConfigError(f"{where}: expected a table, got {type(document).__name__}")
     if unknown := sorted(set(document) - _TOP_LEVEL):
@@ -101,7 +124,7 @@ def plugins_from(document: Any, where: str = "config") -> list[Plugin]:
     if not declared:
         # A host with no guards is said out loud, not accepted in silence.
         raise ConfigError(f"{where}: no plugins configured")
-    plugins = [_plugin(entry, f"{where}: plugins[{at}]") for at, entry in enumerate(declared)]
+    plugins = [_plugin(entry, f"{where}: plugins[{at}]", base) for at, entry in enumerate(declared)]
     # Runtime refuses these too; checking here lets `rsp validate`, which starts nothing, say so.
     seen: set[str] = set()
     for plugin in plugins:
@@ -120,4 +143,4 @@ def load(path: str | pathlib.Path) -> list[Plugin]:
         raise ConfigError(f"{file}: {exc.strerror}") from exc
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ConfigError(f"{file}: {exc}") from exc
-    return plugins_from(document, where=str(file))
+    return plugins_from(document, where=str(file), base=file.resolve().parent)

@@ -139,6 +139,45 @@ def test_a_config_file_produces_a_runtime_that_works(tmp_path: pathlib.Path) -> 
     assert result.content == "a [REDACTED:echo-test] here"
 
 
+def test_a_relative_command_resolves_against_the_config(tmp_path: pathlib.Path) -> None:
+    """A config that only works from one directory is the defect a user meets too."""
+    plugin = tmp_path / "scanners" / "main.py"
+    plugin.parent.mkdir()
+    plugin.write_text("")
+    config = tmp_path / "rsp.toml"
+    config.write_text('[[plugins]]\nname = "x"\ncommand = ["python3", "scanners/main.py"]\n')
+
+    [loaded] = load(config)
+
+    assert loaded.command == ["python3", str(plugin)]
+
+
+def test_a_bare_name_is_left_for_path_to_resolve(tmp_path: pathlib.Path) -> None:
+    """`node` beside the config would be a different program from the one meant."""
+    config = tmp_path / "rsp.toml"
+    config.write_text('[[plugins]]\nname = "x"\ncommand = ["node", "--version", "on_chunk"]\n')
+
+    [loaded] = load(config)
+
+    assert loaded.command == ["node", "--version", "on_chunk"]
+
+
+def test_an_absolute_path_is_passed_through(tmp_path: pathlib.Path) -> None:
+    config = tmp_path / "rsp.toml"
+    config.write_text(f'[[plugins]]\nname = "x"\ncommand = ["{ECHO[0]}", "/opt/scan/main.py"]\n')
+
+    [loaded] = load(config)
+
+    assert loaded.command == [ECHO[0], "/opt/scan/main.py"]
+
+
+def test_a_mapping_with_no_file_behind_it_is_left_alone() -> None:
+    """A host parsing YAML passes its own directory, or none, and nothing is invented."""
+    [loaded] = plugins_from({"plugins": [{"name": "x", "command": ["node", "src/main.ts"]}]})
+
+    assert loaded.command == ["node", "src/main.ts"]
+
+
 def test_validate_prints_each_plugin_and_succeeds(
     tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
