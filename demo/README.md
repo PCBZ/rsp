@@ -9,7 +9,7 @@ config names its plugin beside itself, so it is read the same from anywhere:
 $ rsp ingest demo/sample-docs --config demo/rsp.toml
 scanned 11 chunks
   REDACT aws-access-token   demo/sample-docs/deploy-notes.md:1-14
-  REDACT private-key        demo/sample-docs/runbook-backups.md:1-17
+  REDACT private-key        demo/sample-docs/runbook-backups.md:1-18
 11 chunks indexed, 0 blocked, 2 redacted
 ```
 
