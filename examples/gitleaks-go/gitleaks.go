@@ -66,24 +66,22 @@ func usable(span Span, content string) bool {
 
 // origin is the byte gitleaks counts this line's columns from.
 func origin(origins []int, line int) (int, bool) {
-	if line == 1 {
-		return 0, true
-	}
 	if line < 1 || line > len(origins) {
 		return 0, false
 	}
-	return origins[line-1] - 1, true
+	return origins[line-1], true
 }
 
-// columnOrigins is where each line begins.
+// columnOrigins is the byte each line's columns are counted from: the newline
+// above it, and 0 for the first, which has none.
 func columnOrigins(content string) []int {
-	starts := []int{0}
+	origins := []int{0}
 	for at := 0; at < len(content); at++ {
 		if content[at] == '\n' {
-			starts = append(starts, at+1)
+			origins = append(origins, at)
 		}
 	}
-	return starts
+	return origins
 }
 
 // run executes the binary once, returning what it wrote and how it exited. A

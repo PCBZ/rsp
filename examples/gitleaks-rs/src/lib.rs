@@ -2,6 +2,7 @@
 
 pub mod gitleaks;
 pub mod protocol;
+pub mod spans;
 pub mod strictjson;
 
 /// Anything that stops this plugin answering; the host makes that a verdict (E1, D3).

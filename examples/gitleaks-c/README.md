@@ -18,14 +18,14 @@ vendored here: cJSON is 3512 lines against a core of 854, and committing it
 would make this repository responsible for tracking someone else's fixes.
 
 A host should point at the built binary. There is no running from source, so
-the conformance kit skips this adapter until `make` has been run, where the
-other four need no build step.
+the conformance kit skips this adapter until `make` has been run, as it skips
+Java and Swift until theirs. The other four need no build step.
 
 ## What this language has that the others do not
 
 **Nothing throws.** Every failure is a return value, and a caller that ignores
 one carries on with whatever was in the buffer. D3 says every error path ends
-in BLOCK; in the other four a path nobody wrote still crashes the process and
+in BLOCK; in the other six a path nobody wrote still crashes the process and
 the host blocks. Here it does not. Every function returns 0 or -1, `main`
 exits non-zero on either, and stdout stays empty when it does.
 
@@ -35,7 +35,7 @@ content carrying one arrives shorter than the host sent it — and the offsets
 gitleaks then reports index the truncated text while the host applies them to
 the whole. That redacts the wrong bytes, which is worse than missing a
 secret. `rsp_escapes_a_nul` refuses the request instead: this plugin cannot
-represent that chunk and says so (E1). The other four carry a length and are
+represent that chunk and says so (E1). The other six carry a length and are
 unaffected.
 
 **Some mistakes no assertion can see.** `gl_to_spans` checks `strlen(Match)`

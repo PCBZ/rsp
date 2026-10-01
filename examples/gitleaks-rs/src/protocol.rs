@@ -3,7 +3,8 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::gitleaks::{to_spans, Gitleaks};
+use crate::gitleaks::Gitleaks;
+use crate::spans::to_spans;
 use crate::Error;
 
 /// What a host sends. serde ignores unknown fields (D8).

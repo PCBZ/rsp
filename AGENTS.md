@@ -44,10 +44,12 @@ uv run pytest
 - Strictest verdict wins, `BLOCK` short-circuits (D9).
 - `guards.py` and each plugin adapter contain no detection logic and stay
   small: under 80 lines of code, counting neither docstrings nor comments nor
-  blank lines. A language that puts a closing brace on its own line pays a
-  fixed tax that is not growth — `examples/gitleaks-go/gitleaks.go` is 94
-  lines, of which 54 do work and 34 are braces and struct tags. Judge the
-  work, and say which it is when the number goes over.
+  blank lines. A language that puts a closing brace or a struct tag on its own
+  line pays a fixed tax that is not growth, so those lines do not count either
+  — `examples/gitleaks-go/gitleaks.go` is 136 lines, of which 80 do work. A
+  test does the counting, so a disagreement is about the work rather than
+  about the arithmetic. Judge the work, and say which it is when the number
+  goes over.
 
 ## Conventions
 

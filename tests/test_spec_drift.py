@@ -226,3 +226,56 @@ def test_no_compiled_artefact_is_tracked() -> None:
                 found.append(f"{name} ({kind})")
                 break
     assert not found, f"compiled output is tracked: {found}"
+
+
+# `guards.py` and the file wrapping the tool in each adapter: the budget is on
+# the translation from a detector to the protocol, not on a whole directory.
+BUDGET = 80
+# Tracked, an implementation rather than a header, and not a test of one: build
+# output carries the same name, `gitleaks.h` declares the work instead of doing
+# it, and a suite is not what the budget is about.
+_WRITTEN_IN = {".c", ".go", ".java", ".py", ".rs", ".swift", ".ts"}
+BUDGETED = [
+    ROOT / "rsp" / "guards.py",
+    *sorted(
+        ROOT / name
+        for name in subprocess.run(
+            ["git", "ls-files", "examples"], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.split()
+        if pathlib.Path(name).stem.lower() == "gitleaks"
+        and pathlib.Path(name).suffix in _WRITTEN_IN
+        and not {"test", "tests"} & set(pathlib.Path(name).parts)
+    ),
+]
+# A line doing no work: block punctuation on its own, or an attribute — AGENTS.md
+# counts "braces and struct tags" as a tax a language charges, not as growth.
+NO_WORK = re.compile(r"^(?:[\s{}()\[\];,?]*|#!?\[.*|@[A-Za-z].*)$")
+_BLOCK_COMMENT = re.compile(r"/\*(?:.|\n)*?\*/")
+_DOCSTRING = re.compile(r'^\s*"""(?:.|\n)*?"""', re.MULTILINE)
+
+
+def _working_lines(path: pathlib.Path) -> int:
+    """The budget's own units: neither comment, nor blank, nor punctuation."""
+    text = path.read_text(encoding="utf-8")
+    text = _DOCSTRING.sub("", text) if path.suffix == ".py" else _BLOCK_COMMENT.sub("", text)
+    lines = (line.strip() for line in text.splitlines())
+    comment = ("//", "*", "#") if path.suffix == ".py" else ("//", "*")
+    return sum(
+        1 for line in lines if line and not line.startswith(comment) and not NO_WORK.match(line)
+    )
+
+
+@pytest.mark.parametrize("path", BUDGETED, ids=lambda path: str(path.relative_to(ROOT)))
+def test_an_adapter_stays_inside_its_budget(path: pathlib.Path) -> None:
+    """A rule only reviewers applied, which is why AGENTS.md's own example drifted.
+
+    It cited this file at 94 lines, 54 of them working, and nobody noticed it
+    reach 136. One counter settles what the number is, so a disagreement is
+    about the work rather than about the arithmetic.
+    """
+    assert _working_lines(path) <= BUDGET, f"{path.name} does {_working_lines(path)} lines of work"
+
+
+def test_the_budget_covers_every_adapter_and_the_guard() -> None:
+    """A parametrisation over nothing reports no failure, which is the shape to avoid."""
+    assert len(BUDGETED) == len(ADAPTERS) + 1, [str(p.relative_to(ROOT)) for p in BUDGETED]
