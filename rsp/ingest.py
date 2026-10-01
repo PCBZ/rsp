@@ -116,7 +116,13 @@ def _finding(verdict: str, provenance: dict[str, Any], node: BaseNode) -> Findin
     )
 
 
-def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
+def ingest(directory: pathlib.Path, plugins: list[Plugin], *, store: Any = None) -> Report:
+    """One directory in, a `Report` out; `store` takes the kept chunks, default nowhere.
+
+    A host that wants an index to retrieve from passes one. It is also where
+    the claim is checked: what the index was handed is a stronger answer than
+    a count of what came back.
+    """
     from llama_index.core.embeddings import MockEmbedding
     from llama_index.core.ingestion import IngestionPipeline
     from llama_index.core.node_parser import SentenceSplitter
@@ -136,6 +142,7 @@ def ingest(directory: pathlib.Path, plugins: list[Plugin]) -> Report:
             MockEmbedding(embed_dim=8),
         ],
         # No docstore: it would store documents whole, past every guard (K1).
+        vector_store=store,
     ).run(nodes=chunks)
 
     findings += [
