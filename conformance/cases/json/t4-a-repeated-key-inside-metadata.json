@@ -1,0 +1,10 @@
+{
+  "name": "t4-a-repeated-key-inside-metadata",
+  "clause": "T4",
+  "plugin": "any",
+  "note": "Inside a field M2 calls advisory, which a plugin may never look at. Two hosts reading this message disagree about what it says, whether or not anyone reads that field.",
+  "raw_request": "{\"rsp_version\":\"0.1\",\"hook\":\"on_chunk\",\"content\":\"harmless\",\"metadata\":{\"k\":1,\"k\":2}}",
+  "expect": {
+    "refused": true
+  }
+}
