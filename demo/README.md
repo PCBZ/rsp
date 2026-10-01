@@ -2,7 +2,8 @@
 
 Eight documents that read like an internal wiki. Two have a credential in the
 place credentials end up: pasted into a runbook during an incident, never
-taken out. Both fabricated. Run from the repository root:
+taken out. Both fabricated. The paths below are the repository root's; the
+config names its plugin beside itself, so it is read the same from anywhere:
 
 ```console
 $ rsp ingest demo/sample-docs --config demo/rsp.toml

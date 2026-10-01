@@ -88,6 +88,17 @@ def test_no_planted_secret_survives_into_the_index(gitleaks: None) -> None:
             assert secret not in written, f"{node.metadata.get('file_path')} carried it in"
 
 
+def test_the_demo_runs_from_any_directory(
+    gitleaks: None, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The config names its plugin beside itself, not beside whoever ran it."""
+    monkeypatch.chdir(tmp_path)
+
+    report = ingest(DOCS, load(CONFIG))
+
+    assert len(report.redacted) == len(PLANTED)
+
+
 def test_the_corpus_is_mostly_clean(gitleaks: None) -> None:
     """Precision: a corpus where everything is flagged proves nothing about a scanner."""
     report = ingest(DOCS, load(CONFIG))
