@@ -6,6 +6,7 @@ import builtins
 import pathlib
 import shutil
 import sys
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -16,6 +17,11 @@ from rsp.cli import main
 from rsp.config import load
 from rsp.ingest import CHUNK, documents, ingest
 from rsp.runtime import ConfigError
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from llama_index.core.schema import BaseNode
 
 DOCS = ROOT / "demo" / "sample-docs"
 CONFIG = ROOT / "demo" / "rsp.toml"
@@ -45,18 +51,41 @@ def test_the_planted_secrets_are_redacted_and_nothing_else_is(gitleaks: None) ->
 
 
 def test_no_planted_secret_survives_into_the_index(gitleaks: None) -> None:
-    """The claim the demo exists to make."""
+    """The claim the demo exists to make, asked of the store rather than of a count.
+
+    What the store was handed, not what `ingest` returned: a host writes the
+    nodes it was given, so "the store never saw it" is the claim and "not in
+    the result" is weaker.
+    """
     from llama_index.core.node_parser import SentenceSplitter
+    from llama_index.core.schema import MetadataMode
+    from llama_index.core.vector_stores import SimpleVectorStore
 
     from rsp.ingest import documents
 
-    kept = ingest(DOCS, load(CONFIG))
+    indexed: list[Any] = []
+
+    class Recording(SimpleVectorStore):
+        """pydantic allows no undeclared attributes, so the list is outside."""
+
+        def add(self, nodes: Sequence[BaseNode], **kwargs: Any) -> list[str]:
+            indexed.extend(nodes)
+            return super().add(nodes, **kwargs)
+
+    kept = ingest(DOCS, load(CONFIG), store=Recording())
     chunks = SentenceSplitter(chunk_size=CHUNK, chunk_overlap=0)(documents(DOCS))
     before = "".join(chunk.get_content() for chunk in chunks)
 
     assert kept.redacted, "the corpus is supposed to contain secrets"
+    assert len(indexed) == kept.indexed, "the store holds the index this reports"
     for secret in SECRETS:
         assert secret in before, "planted, or this test proves nothing"
+    for node in indexed:
+        # Every mode, since a secret kept out of the text and left in the
+        # metadata reaches an embedding and the LLM all the same (Q8).
+        written = "".join(node.get_content(metadata_mode=mode) for mode in MetadataMode)
+        for secret in SECRETS:
+            assert secret not in written, f"{node.metadata.get('file_path')} carried it in"
 
 
 def test_the_corpus_is_mostly_clean(gitleaks: None) -> None:
