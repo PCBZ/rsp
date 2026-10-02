@@ -254,10 +254,17 @@ _BLOCK_COMMENT = re.compile(r"/\*(?:.|\n)*?\*/")
 _DOCSTRING = re.compile(r'^\s*"""(?:.|\n)*?"""', re.MULTILINE)
 
 
+def _blank(comment: re.Match[str]) -> str:
+    """A comment is worth its own newlines: removed outright it joins the code around it."""
+    return "\n" * comment[0].count("\n")
+
+
 def _working_lines(path: pathlib.Path) -> int:
     """The budget's own units: neither comment, nor blank, nor punctuation."""
     text = path.read_text(encoding="utf-8")
-    text = _DOCSTRING.sub("", text) if path.suffix == ".py" else _BLOCK_COMMENT.sub("", text)
+    text = (
+        _DOCSTRING.sub(_blank, text) if path.suffix == ".py" else _BLOCK_COMMENT.sub(_blank, text)
+    )
     lines = (line.strip() for line in text.splitlines())
     comment = ("//", "*", "#") if path.suffix == ".py" else ("//", "*")
     return sum(
@@ -277,5 +284,15 @@ def test_an_adapter_stays_inside_its_budget(path: pathlib.Path) -> None:
 
 
 def test_the_budget_covers_every_adapter_and_the_guard() -> None:
-    """A parametrisation over nothing reports no failure, which is the shape to avoid."""
-    assert len(BUDGETED) == len(ADAPTERS) + 1, [str(p.relative_to(ROOT)) for p in BUDGETED]
+    """A parametrisation over nothing reports no failure, which is the shape to avoid.
+
+    By name and not by count: two files found under one adapter and none under
+    another is the same total, and leaves that one unmeasured.
+    """
+    covered = [
+        path.relative_to(ROOT / "examples").parts[0]
+        for path in BUDGETED
+        if path.is_relative_to(ROOT / "examples")
+    ]
+    assert sorted(covered) == ADAPTERS, covered
+    assert ROOT / "rsp" / "guards.py" in BUDGETED
