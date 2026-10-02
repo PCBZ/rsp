@@ -3,7 +3,8 @@
 
 use std::collections::BTreeMap;
 
-use rsp_gitleaks::gitleaks::{to_spans, Finding};
+use rsp_gitleaks::gitleaks::Finding;
+use rsp_gitleaks::spans::to_spans;
 use serde::Deserialize;
 use serde_json::Value;
 

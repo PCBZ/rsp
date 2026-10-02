@@ -18,7 +18,7 @@ cJSON *rsp_respond(const cJSON *request, const char *raw);
  * reports index the truncated text and the host applies them to the whole,
  * which redacts the wrong bytes rather than missing a secret. Refused instead:
  * this plugin cannot represent that chunk, and saying so is the only honest
- * answer (E1). The other four adapters carry a length and are unaffected. */
+ * answer (E1). The other six adapters carry a length and are unaffected. */
 int rsp_escapes_a_nul(const char *raw);
 
 #endif

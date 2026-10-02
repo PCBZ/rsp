@@ -9,7 +9,7 @@ import java.nio.file.Path;
 /**
  * Line-and-column to byte offsets. No binary needed: a report is data.
  *
- * <p>The table is examples/gitleaks-offsets.json, shared with the other four
+ * <p>The table is examples/gitleaks-offsets.json, shared with the other six
  * adapters, because the numbers in it are facts about gitleaks rather than
  * about any of them. What stays here is what this language makes possible.
  */

@@ -3,7 +3,7 @@
 An RSP plugin in Java: wraps the unmodified
 [gitleaks](https://github.com/gitleaks/gitleaks) binary.
 
-The sixth and last adapter over the same tool. The thirteen cases in
+The sixth adapter over the same tool. The thirteen cases in
 `examples/gitleaks-offsets.json` and the seven under
 `conformance/cases/gitleaks/` run against it unchanged.
 

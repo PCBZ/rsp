@@ -4,18 +4,9 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::thread;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::Error;
-
-/// A range to mask, in byte offsets (S1), which is what a `str` indexes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-    #[serde(rename = "type")]
-    pub kind: String,
-}
 
 /// The part of a gitleaks report a chunk can have. Fields default, so a finding
 /// without a position becomes a BLOCK rather than a parse failure.
@@ -111,59 +102,4 @@ impl Gitleaks {
         }
         Ok(serde_json::from_str(&report)?)
     }
-}
-
-/// Converts gitleaks' positions to byte offsets, dropping a finding it cannot
-/// place. The quirks it corrects are the notes in gitleaks-offsets.json.
-pub fn to_spans(findings: &[Finding], content: &str) -> Vec<Span> {
-    let origins = column_origins(content);
-    findings
-        .iter()
-        .filter_map(|finding| {
-            let from = origin(&origins, finding.start_line)?;
-            let to = origin(&origins, finding.end_line)?;
-            // Checked: a column is someone else's number, and overflow panics in
-            // debug and wraps in release where a dropped finding is owed.
-            let start = from.checked_add(finding.start_column)?.checked_sub(1)?;
-            let end = to.checked_add(finding.end_column)?;
-            let (start, end) = (usize::try_from(start).ok()?, usize::try_from(end).ok()?);
-            // `usable` first (S3): slicing off a char boundary panics the plugin.
-            if !usable(start, end, content) || content[start..end] != finding.matched {
-                return None;
-            }
-            Some(Span {
-                start,
-                end,
-                kind: finding.rule_id.clone(),
-            })
-        })
-        .collect()
-}
-
-/// Whether a span is in range, non-empty, and on character boundaries at both
-/// ends. `is_char_boundary` is false past the end, so the range check is its.
-pub fn usable(start: usize, end: usize, content: &str) -> bool {
-    start < end && content.is_char_boundary(start) && content.is_char_boundary(end)
-}
-
-/// The byte gitleaks counts this line's columns from.
-fn origin(origins: &[i64], line: i64) -> Option<i64> {
-    if line == 1 {
-        return Some(0);
-    }
-    if line < 1 || line > origins.len() as i64 {
-        return None;
-    }
-    Some(origins[line as usize - 1] - 1)
-}
-
-/// Where each line begins.
-fn column_origins(content: &str) -> Vec<i64> {
-    let mut starts = vec![0];
-    for (at, byte) in content.bytes().enumerate() {
-        if byte == b'\n' {
-            starts.push(at as i64 + 1);
-        }
-    }
-    starts
 }

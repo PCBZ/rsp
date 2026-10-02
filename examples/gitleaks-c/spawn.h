@@ -1,7 +1,7 @@
 /* Start a command, feed it, drain it, reap it. Knows no JSON.
  *
  * Apart from gitleaks.c for the reason rsp/process.py is apart from the layers
- * above it: a pipe is not a report. In the other four adapters this is a
+ * above it: a pipe is not a report. In the other six adapters this is a
  * handful of lines from a standard library, which is why only this one has a
  * file for it. */
 #ifndef RSP_SPAWN_H
