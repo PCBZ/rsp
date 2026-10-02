@@ -19,16 +19,21 @@ classes/Main.class: $(wildcard src/*.java) $(GSON)
 
 # Verified before it is put where the build looks: make does not delete a
 # target whose recipe failed, so checking in place would leave a rejected jar
-# that the next make finds present and does not check again.
+# that the next make finds present and treats as built.
 $(GSON):
 	mkdir -p lib
-	curl -sSfL -o $@.unverified \
+	curl -sSfL --retry 3 --retry-all-errors -o $@.unverified \
 	    https://repo1.maven.org/maven2/com/google/code/gson/gson/$(GSON_VERSION)/gson-$(GSON_VERSION).jar
 	echo "$(GSON_SHA)  $@.unverified" | shasum -a 256 --check --strict - || { rm -f $@.unverified; exit 1; }
 	mv $@.unverified $@
 
-.PHONY: test clean
-test: rsp-gitleaks-java
+# Checked on every build and not only when it is fetched: a jar that arrives
+# by some other route — a restored cache, a hand copy — is one nobody checked.
+.PHONY: verify test clean
+verify: $(GSON)
+	echo "$(GSON_SHA)  $(GSON)" | shasum -a 256 --check --strict --quiet -
+
+test: verify rsp-gitleaks-java
 	$(JAVAC) -Xlint:all,-classfile -Werror -cp "classes:$(GSON)" -d classes test/*.java
 	$(JAVA) -cp "classes:$(GSON)" GitleaksTest
 	./testdata/requests.sh ./rsp-gitleaks-java

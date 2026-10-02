@@ -99,6 +99,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # Keyed on the Makefile, which holds both the version and the checksum:
+      # a jar restored from this cache meets the same check a fetched one does,
+      # and a rate-limited Maven Central has failed this job once already.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: examples/gitleaks-java/lib
+          key: gson-${{ hashFiles('examples/gitleaks-java/Makefile') }}
+
       # gson is pinned and checksummed by the Makefile, the way this job pins
       # gitleaks: Java has no JSON in its standard library either.
       - name: Build and test the Java plugin
