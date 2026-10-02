@@ -17,7 +17,7 @@ import pathlib
 import sys
 from typing import Any
 
-from harness import check, load
+from harness import check, load, spellings
 
 ROOT = pathlib.Path(__file__).parent
 
@@ -34,8 +34,8 @@ def run_role(cases: list[tuple[str, dict[str, Any]]], command: list[str]) -> tup
     failures = 0
     settled: dict[str, bool] = collections.defaultdict(bool)
     for name, case in cases:
-        # JSON permits both encodings, and a plugin can pass one and fail the other.
-        outcomes = {escaped: check(case, command, escaped=escaped) for escaped in (False, True)}
+        # A plugin can pass one encoding and fail the other.
+        outcomes = {escaped: check(case, command, escaped=escaped) for escaped in spellings(case)}
         passed = all(outcome.passed for outcome in outcomes.values())
         failures += not passed
         for clause in (part.strip() for part in case["clause"].split(",")):
