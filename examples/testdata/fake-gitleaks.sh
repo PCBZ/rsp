@@ -1,5 +1,9 @@
 #!/bin/sh
-# A gitleaks that answers as the test chose.
+# A gitleaks that answers as the test chose, for every adapter: five kept a
+# copy of this, three of them byte for byte.
+#
+# The answers come from the environment, and a caller that cannot set one per
+# child — a test suite sharing a process — prefixes `env` to the command.
 #
 # FAKE_GITLEAKS_PAD writes that many blanks before reading anything, which is
 # how a test fills the caller's stdout pipe while its stdin is still unread —

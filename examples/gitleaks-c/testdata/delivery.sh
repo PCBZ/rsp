@@ -6,7 +6,7 @@
 # as the failure it is.
 set -u
 binary=${1:-./rsp-gitleaks-c}
-fake=$(cd "$(dirname "$0")" && pwd)/fake-gitleaks.sh
+fake=$(cd "$(dirname "$0")/../.." && pwd)/testdata/fake-gitleaks.sh
 failures=0
 
 chunk=$(head -c 200000 /dev/zero | tr '\0' x)

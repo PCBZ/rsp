@@ -12,7 +12,7 @@ import pathlib
 import pytest
 from protocol import REPLACEMENT, respond
 
-FAKE = pathlib.Path(__file__).parent.parent / "testdata" / "fake-gitleaks.sh"
+FAKE = pathlib.Path(__file__).parents[2] / "testdata" / "fake-gitleaks.sh"
 KEY = "AKIALALEMEL33243OLIB"
 
 
