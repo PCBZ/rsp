@@ -7,19 +7,20 @@ use serde_json::{json, Value};
 
 const KEY: &str = "AKIALALEMEL33243OLIB";
 
-/// The report and the exit status ride in the command, not the environment:
-/// tests share one process, and one test's environment is every test's.
 fn fake(report: &str, exit: &str) -> Gitleaks {
     padded(report, exit, 0)
 }
 
+/// Through `env`, so the answers reach this child and no other: tests share
+/// one process, and one test's environment would be every test's.
 fn padded(report: &str, exit: &str, padding: usize) -> Gitleaks {
-    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/fake-gitleaks.sh");
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../testdata/fake-gitleaks.sh");
     Gitleaks::new(vec![
+        "env".into(),
+        format!("FAKE_GITLEAKS_REPORT={report}"),
+        format!("FAKE_GITLEAKS_EXIT={exit}"),
+        format!("FAKE_GITLEAKS_PAD={padding}"),
         script.into(),
-        report.into(),
-        exit.into(),
-        padding.to_string(),
     ])
 }
 

@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { REPLACEMENT, respond } from "../src/protocol.ts";
 
-const FAKE = path.join(import.meta.dirname, "fixtures", "fake-gitleaks.sh");
+const FAKE = path.join(import.meta.dirname, "..", "..", "testdata", "fake-gitleaks.sh");
 const SAVED = { ...process.env };
 const KEY = "AKIALALEMEL33243OLIB";
 

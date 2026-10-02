@@ -9,7 +9,7 @@ import (
 
 func fake(t *testing.T, report string, exit string) {
 	t.Helper()
-	path, err := filepath.Abs("testdata/fake-gitleaks.sh")
+	path, err := filepath.Abs("../testdata/fake-gitleaks.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
