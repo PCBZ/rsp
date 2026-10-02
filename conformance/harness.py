@@ -31,6 +31,16 @@ def load(root: pathlib.Path) -> list[tuple[str, dict[str, Any]]]:
     ]
 
 
+def spellings(case: dict[str, Any]) -> tuple[bool, ...]:
+    """Which encodings to send this case in, as `escaped` values.
+
+    Both where JSON permits both. One where `raw_request` fixes the bytes:
+    `escaped` has nothing to act on there, so a second run sends the first
+    message again.
+    """
+    return (False,) if "raw_request" in case else (False, True)
+
+
 def check(case: dict[str, Any], command: list[str], *, escaped: bool = False) -> Outcome:
     r"""What the plugin said, against what the case requires.
 

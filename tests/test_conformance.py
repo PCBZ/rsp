@@ -12,7 +12,7 @@ import pathlib
 from collections.abc import Callable
 
 import pytest
-from harness import check
+from harness import check, spellings
 
 from plugins import REQUIRED, ROOT, Implementation, for_role
 
@@ -20,27 +20,29 @@ CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
 
 # Installed or not, so a missing plugin is a visible skip per case, not a shorter run.
+# The spelling is part of the run rather than a dimension crossed over all of
+# them: a case whose bytes are fixed has one, and running it twice runs it once.
 RUNS = [
-    (path, implementation)
-    for path in CASES
-    for implementation in for_role(json.loads(path.read_text(encoding="utf-8"))["plugin"])
+    (path, implementation, escaped)
+    for path, case in ((path, json.loads(path.read_text(encoding="utf-8"))) for path in CASES)
+    for implementation in for_role(case["plugin"])
+    for escaped in spellings(case)
 ]
 
 
-def _id(run: tuple[pathlib.Path, Implementation]) -> str:
-    path, implementation = run
-    return f"{path.relative_to(CASE_ROOT).as_posix().removesuffix('.json')}-{implementation.name}"
+def _id(run: tuple[pathlib.Path, Implementation, bool]) -> str:
+    path, implementation, escaped = run
+    name = path.relative_to(CASE_ROOT).as_posix().removesuffix(".json")
+    return f"{name}-{implementation.name}-{'escaped' if escaped else 'utf8'}"
 
 
-@pytest.mark.parametrize("escaped", [False, True], ids=["utf8", "escaped"])
 @pytest.mark.parametrize("run", RUNS, ids=_id)
 def test_case(
-    run: tuple[pathlib.Path, Implementation],
-    escaped: bool,
+    run: tuple[pathlib.Path, Implementation, bool],
     record_property: Callable[[str, object], None],
 ) -> None:
-    """Both, as JSON permits either: bad surrogate-pair decoding shows only past the BMP."""
-    path, implementation = run
+    """Both encodings where JSON permits them: bad surrogate pairs show only past the BMP."""
+    path, implementation, escaped = run
     case = json.loads(path.read_text(encoding="utf-8"))
     # What makes the report a matrix rather than a list (conftest.py).
     record_property("clause", case["clause"])
@@ -54,6 +56,27 @@ def test_case(
     outcome = check(case, command, escaped=escaped)
 
     assert outcome.passed, outcome.why
+
+
+def test_every_case_runs_in_each_spelling_it_has() -> None:
+    """A repeat that was dropped and a case that stopped being collected are one fewer run.
+
+    Nothing here is read from `CASES` or from `spellings`, which are what is
+    under suspicion: the directory is walked again and the rule is written out.
+    A test that asks the code what it expects agrees with it by construction.
+    """
+    collected: dict[tuple[str, str], set[bool]] = {}
+    for path, implementation, escaped in RUNS:
+        collected.setdefault((path.name, implementation.name), set()).add(escaped)
+
+    on_disk = sorted(CASE_ROOT.rglob("*.json"))
+    assert on_disk, "no case files"
+    for path in on_disk:
+        case = json.loads(path.read_text(encoding="utf-8"))
+        wanted = {False} if "raw_request" in case else {False, True}
+        for implementation in for_role(case["plugin"]):
+            ran = collected.get((path.name, implementation.name))
+            assert ran == wanted, f"{path.name} on {implementation.name}: {ran}, wanted {wanted}"
 
 
 def test_nothing_asks_a_plugin_declared_for_another_platform() -> None:
