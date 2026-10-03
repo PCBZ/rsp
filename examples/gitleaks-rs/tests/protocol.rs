@@ -126,8 +126,10 @@ fn refuses_a_missing_report_when_gitleaks_says_it_found_something() {
 
 #[test]
 fn an_empty_report_with_a_clean_exit_is_still_a_clean_chunk() {
-    // The reading that has to survive the test above.
-    let got = respond(&fake("", "0"), &chunk("nothing here")).unwrap();
+    // On a chunk that does hold a key, which is the reading that has to
+    // survive the test above: nothing written means nothing found only when
+    // the status says the run was clean.
+    let got = respond(&fake("", "0"), &chunk(KEY)).unwrap();
 
     assert_eq!(got, json!({"verdict": "ALLOW"}));
 }
