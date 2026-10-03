@@ -6,12 +6,12 @@ import Foundation
 /// finding at line zero rather than a decode failure — the difference between
 /// a BLOCK and a crash.
 public struct Finding: Decodable {
-    public var ruleID = ""
-    public var startLine = 0
-    public var endLine = 0
-    public var startColumn = 0
-    public var endColumn = 0
-    public var match = ""
+    public var ruleID: String
+    public var startLine: Int
+    public var endLine: Int
+    public var startColumn: Int
+    public var endColumn: Int
+    public var match: String
 
     enum CodingKeys: String, CodingKey {
         case ruleID = "RuleID"
@@ -31,6 +31,4 @@ public struct Finding: Decodable {
         endColumn = try fields.decodeIfPresent(Int.self, forKey: .endColumn) ?? 0
         match = try fields.decodeIfPresent(String.self, forKey: .match) ?? ""
     }
-
-    public init() {}
 }
