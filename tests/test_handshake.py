@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import sys
 
 import pytest
 
-from plugins import ECHO
+from plugins import ECHO, script
 from rsp.handshake import Handshake, Outcome, _declaration, handshake
 
 VALID = {
@@ -20,7 +19,7 @@ VALID = {
 
 def declaring(payload: dict) -> list[str]:
     """A plugin that answers the handshake with exactly this payload."""
-    return [sys.executable, "-c", f"import sys; sys.stdin.read(); print({json.dumps(payload)!r})"]
+    return script(f"import sys; sys.stdin.read(); print({json.dumps(payload)!r})")
 
 
 def test_reference_plugin_declares_itself() -> None:
@@ -40,6 +39,7 @@ def test_declared_hooks_decide_what_may_be_called() -> None:
 
 @pytest.mark.parametrize("missing", ["rsp_version", "name", "version", "hooks"])
 def test_a_declaration_missing_a_required_field_is_rejected(missing: str) -> None:
+    """Refused rather than raising: a lookup that assumes presence is a crash."""
     payload = {k: v for k, v in VALID.items() if k != missing}
     assert _declaration(payload) is None
 
@@ -77,20 +77,6 @@ def test_a_plugin_that_answers_with_a_verdict_is_malformed() -> None:
 
 
 def test_process_failures_surface_unchanged() -> None:
-    outcome, declaration = handshake([sys.executable, "-c", "import sys; sys.exit(2)"])
+    outcome, declaration = handshake(script("import sys; sys.exit(2)"))
     assert outcome is Outcome.CRASHED
     assert declaration is None
-
-
-def test_a_declaration_missing_a_field_is_refused_without_raising() -> None:
-    """A lookup that assumes presence turns a malformed declaration into a crash."""
-    for missing in ("rsp_version", "name", "version", "hooks"):
-        declaration = {
-            "rsp_version": "0.1",
-            "name": "p",
-            "version": "1",
-            "hooks": ["on_chunk"],
-        }
-        del declaration[missing]
-
-        assert _declaration(declaration) is None, missing

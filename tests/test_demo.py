@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 import pathlib
 import re
 import shutil
@@ -10,13 +11,17 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import MetadataMode, TextNode
+from llama_index.core.vector_stores import SimpleVectorStore
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-from plugins import REQUIRED, ROOT, for_role
+from plugins import ECHO, ROOT, for_role, needs
+from rsp import ingest as module
 from rsp.cli import main
 from rsp.config import load
-from rsp.ingest import CHUNK, documents, ingest
+from rsp.ingest import CHUNK, _lines_of, documents, ingest
 from rsp.runtime import ConfigError
 
 if TYPE_CHECKING:
@@ -35,11 +40,7 @@ SECRETS = ("AKIA47CQZHT2MVPF3JXB", "b3BlbnNzaC1rZXktdjEAAAAABG5vbmU")
 
 @pytest.fixture(scope="module")
 def gitleaks() -> None:
-    wrapper = next(one for one in for_role("gitleaks") if one.name == "rsp-gitleaks-ts")
-    if why := wrapper.unavailable():
-        if wrapper.supported and REQUIRED:
-            pytest.fail(why)
-        pytest.skip(why)
+    needs(next(one for one in for_role("gitleaks") if one.name == "rsp-gitleaks-ts"))
 
 
 def test_the_planted_secrets_are_redacted_and_nothing_else_is(gitleaks: None) -> None:
@@ -59,12 +60,6 @@ def test_no_planted_secret_survives_into_the_index(gitleaks: None) -> None:
     nodes it was given, so "the store never saw it" is the claim and "not in
     the result" is weaker.
     """
-    from llama_index.core.node_parser import SentenceSplitter
-    from llama_index.core.schema import MetadataMode
-    from llama_index.core.vector_stores import SimpleVectorStore
-
-    from rsp.ingest import documents
-
     indexed: list[Any] = []
 
     class Recording(SimpleVectorStore):
@@ -202,10 +197,7 @@ def test_a_blocked_chunk_is_named_in_the_report(tmp_path: pathlib.Path) -> None:
     (corpus / "notes.md").write_text("Ordinary prose.\n")
     (corpus / "refused.md").write_text("This paragraph contains RSP-BLOCK.\n")
     config = tmp_path / "rsp.toml"
-    config.write_text(
-        f'[[plugins]]\nname = "echo"\ncommand = ["{sys.executable}", '
-        f'"{ROOT / "plugins/rsp-echo/main.py"}"]\n'
-    )
+    config.write_text(f'[[plugins]]\nname = "echo"\ncommand = {json.dumps(ECHO)}\n')
 
     report = ingest(corpus, load(config))
 
@@ -216,10 +208,6 @@ def test_a_blocked_chunk_is_named_in_the_report(tmp_path: pathlib.Path) -> None:
 
 
 def test_a_node_without_a_source_still_reports_a_range() -> None:
-    from llama_index.core.schema import TextNode
-
-    from rsp.ingest import _lines_of
-
     assert _lines_of(TextNode(text="anything")) == "?"
 
 
@@ -250,10 +238,6 @@ def test_a_missing_scanner_fails_before_the_corpus_is_read(
 
 def test_the_line_range_reads_each_source_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """Caching offsets rather than text keeps no scanned secret alive in memory."""
-    from llama_index.core.schema import TextNode
-
-    from rsp import ingest as module
-
     source = DOCS / min(p.name for p in DOCS.iterdir() if p.is_file())
     module._newlines_as_of.cache_clear()
     reads = 0
@@ -288,10 +272,6 @@ def test_the_last_line_holds_the_chunk_s_last_character(
     tmp_path: pathlib.Path, text: str, span: tuple[int, int], want: str
 ) -> None:
     """An exclusive end read as a position names the line after the one it ends."""
-    from llama_index.core.schema import TextNode
-
-    from rsp.ingest import _lines_of
-
     source = tmp_path / "doc.md"
     source.write_text(text, encoding="utf-8")
     node = TextNode(text="x", metadata={"file_path": str(source)})
@@ -302,10 +282,6 @@ def test_the_last_line_holds_the_chunk_s_last_character(
 
 def test_a_rewritten_source_is_read_again(tmp_path: pathlib.Path) -> None:
     """Offsets cached under a path alone outlive the file they came from."""
-    from llama_index.core.schema import TextNode
-
-    from rsp.ingest import _lines_of
-
     source = tmp_path / "doc.md"
     node = TextNode(text="x", metadata={"file_path": str(source)})
     node.start_char_idx, node.end_char_idx = 0, 6
@@ -325,10 +301,6 @@ def test_chunking_does_not_depend_on_where_the_corpus_lives(tmp_path: pathlib.Pa
     that moved for a reason nobody chose. Through `documents`, because a test
     that builds its own exclusion lists asserts nothing about the code.
     """
-    from llama_index.core.node_parser import SentenceSplitter
-
-    from rsp.ingest import CHUNK
-
     text = (DOCS / "runbook-backups.md").read_text(encoding="utf-8")
     boundaries = set()
     for depth in (1, 12):

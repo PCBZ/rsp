@@ -17,7 +17,7 @@ from typing import NamedTuple
 
 import pytest
 
-from plugins import REQUIRED, Implementation, for_role
+from plugins import REQUIRED, Implementation, for_role, missing, needs
 from rsp.runtime import Plugin, Result, Runtime, Verdict
 
 IMPLEMENTATIONS = for_role("gitleaks")
@@ -123,19 +123,15 @@ def _guard_the_environment(request: pytest.FixtureRequest) -> None:
     """Skip or fail up front; no clause column, as fidelity to gitleaks is not a SPEC.md clause."""
     # The oracle runs the binary directly, with or without an implementation.
     if shutil.which(GITLEAKS) is None:
-        message = f"not installed: {GITLEAKS}"
-        pytest.fail(message) if REQUIRED else pytest.skip(message)
+        missing(f"not installed: {GITLEAKS}")
 
     callspec = getattr(request.node, "callspec", None)
     implementation = callspec.params.get("implementation") if callspec else None
     if implementation is not None:
         request.getfixturevalue("record_property")("plugin", implementation.name)
-        if why := implementation.unavailable():
-            if implementation.supported and REQUIRED:
-                pytest.fail(why)
-            pytest.skip(why)
+        needs(implementation)
     if CORPUS is None:
-        pytest.fail("no corpus") if REQUIRED else pytest.skip("no corpus")
+        missing("no corpus")
 
 
 def _ids(value: object) -> str:

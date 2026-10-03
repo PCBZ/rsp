@@ -14,7 +14,7 @@ from collections.abc import Callable
 import pytest
 from harness import check, spellings
 
-from plugins import REQUIRED, ROOT, Implementation, for_role
+from plugins import ROOT, Implementation, for_role, needs
 
 CASE_ROOT = ROOT / "conformance" / "cases"
 CASES = sorted(CASE_ROOT.rglob("*.json"))
@@ -48,10 +48,7 @@ def test_case(
     record_property("clause", case["clause"])
     record_property("plugin", implementation.name)
     command = list(implementation.command)
-    if why := implementation.unavailable():
-        if implementation.supported and REQUIRED:
-            pytest.fail(why)
-        pytest.skip(why)
+    needs(implementation)
 
     outcome = check(case, command, escaped=escaped)
 
