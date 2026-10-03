@@ -119,7 +119,11 @@ def decode(raw: bytes) -> tuple[Outcome, dict[str, Any] | None]:
     if not isinstance(payload, dict):
         return Outcome.MALFORMED, None  # a list or a bare string is not a response
     try:
-        encode(payload)  # `\ud800` parses, and cannot be written back as UTF-8 (M1)
+        # `\ud800` parses and cannot be written back as UTF-8 (M1). Through
+        # `encode`, whose walk also bounds the nesting: the C scanner reads two
+        # thousand brackets without complaint, and a plugin does not get to
+        # choose when the host falls over (D2).
+        encode(payload)
     except (ValueError, RecursionError):
         return Outcome.MALFORMED, None
 
