@@ -15,6 +15,8 @@ import shutil
 import sys
 from dataclasses import dataclass
 
+import pytest
+
 ROOT = pathlib.Path(__file__).parent.parent
 MANIFEST = "conformance.json"
 # Absolute: a relative one makes a test pass or fail by where pytest was run.
@@ -124,6 +126,24 @@ rather than a role.
 rsp-replay is not among them, and not by exception: it ships no manifest,
 because a plugin whose purpose is to misbehave on request is an instrument
 rather than an implementation."""
+
+
+def needs(implementation: Implementation) -> None:
+    """Skip a test this plugin cannot take, or fail it where a skip proves nothing.
+
+    The pair is the point: a platform the manifest declared against still
+    skips under REQUIRED, and anything else there is a plugin that should
+    have been built.
+    """
+    if why := implementation.unavailable():
+        if implementation.supported and REQUIRED:
+            pytest.fail(why)
+        pytest.skip(why)
+
+
+def missing(why: str) -> None:
+    """The same decision for something that is not a plugin: a binary, a corpus."""
+    pytest.fail(why) if REQUIRED else pytest.skip(why)
 
 
 def for_role(role: str) -> list[Implementation]:

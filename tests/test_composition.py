@@ -8,11 +8,9 @@ here against this one.
 
 from __future__ import annotations
 
-import sys
-
 import pytest
 
-from plugins import ECHO
+from plugins import ECHO, script
 from rsp.runtime import ConfigError, OnError, Plugin, Runtime, Verdict
 
 
@@ -36,21 +34,11 @@ def fake(
         "req = json.load(sys.stdin)\n"
         f"print(json.dumps({declaration!r} if req.get('hook') == 'handshake' else {response!r}))\n"
     )
-    return Plugin(name=name, command=[sys.executable, "-c", body], on_error=on_error)
+    return Plugin(name=name, command=script(body), on_error=on_error)
 
 
 def runtime(*plugins: Plugin) -> Runtime:
     return Runtime(plugins)
-
-
-def _handshake_then(statement: str) -> str:
-    declaration = {"rsp_version": "0.1", "name": "x", "version": "1.0", "hooks": ["on_chunk"]}
-    return (
-        "import json, sys\n"
-        "req = json.load(sys.stdin)\n"
-        f"if req.get('hook') == 'handshake': print(json.dumps({declaration!r}))\n"
-        f"else: {statement}\n"
-    )
 
 
 def test_strictest_verdict_wins() -> None:
