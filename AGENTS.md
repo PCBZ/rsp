@@ -65,7 +65,10 @@ uv run pytest
   only against a live tracker, and only until that issue is renumbered. Say the
   reason or cite the clause — a test enforces this.
 - `ruff` owns formatting and annotation style.
-- One issue per PR, titled `#N Short summary`. Out-of-scope findings become issues, not scope creep.
+- One issue per PR, titled `#N Short summary`. Out-of-scope findings become
+  issues, not scope creep. A PR carries the labels of the issue it closes, or
+  of the areas it touched where it closes none, so that what a change touched
+  is answerable without reading it.
 
 ## Style
 
