@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 
 import pytest
 
@@ -112,7 +111,7 @@ def test_finite_floats_still_work() -> None:
 
 def test_a_string_that_cannot_be_utf8_is_unencodable() -> None:
     """Inherited, not written: call() catches this because UnicodeEncodeError is a ValueError."""
-    reply = call([sys.executable, "-c", "pass"], {"hook": "on_chunk", "content": "\ud800"})
+    reply = call(script("pass"), {"hook": "on_chunk", "content": "\ud800"})
     assert reply.outcome is Outcome.UNENCODABLE
     assert reply.invocation is None  # nothing was spawned
 

@@ -166,7 +166,7 @@ class Runtime:
             return Result(
                 Verdict.BLOCK,
                 content,
-                {"rsp.verdict": Verdict.BLOCK.value},
+                self._provenance(Verdict.BLOCK, set(), set(), []),
                 ["content is not encodable as UTF-8"],
             )
 
@@ -174,6 +174,7 @@ class Runtime:
         types: set[str] = set()
         severities: set[str] = set()
         contributors: list[str] = []
+        blocked = False
 
         for order, plugin in enumerate(self.for_hook(hook)):
             reply = call(
@@ -181,15 +182,16 @@ class Runtime:
             )
 
             if not reply.ok:
-                if self._failed(plugin, str(reply.outcome), reasons):
-                    return self._blocked(content, types, severities, contributors, reasons)
+                if blocked := self._failed(plugin, str(reply.outcome), reasons):
+                    break
                 continue
 
             said = _verdict_of(reply.payload)
             if said is None:
                 # Guessing at "ALLOOW" is how a typo becomes a silent allow.
-                if self._failed(plugin, f"verdict {reply.payload.get('verdict')!r}", reasons):
-                    return self._blocked(content, types, severities, contributors, reasons)
+                detail = f"verdict {reply.payload.get('verdict')!r}"
+                if blocked := self._failed(plugin, detail, reasons):
+                    break
                 continue
 
             declared: list[Span] = []
@@ -198,8 +200,8 @@ class Runtime:
                 if validated is None:
                     # A response the host cannot use is a plugin error (S3, V3):
                     # nothing says which of its claims were sound, so none is kept.
-                    if self._failed(plugin, "unusable spans", reasons):
-                        return self._blocked(content, types, severities, contributors, reasons)
+                    if blocked := self._failed(plugin, "unusable spans", reasons):
+                        break
                     continue
                 declared = validated
 
@@ -214,12 +216,33 @@ class Runtime:
             if said is Verdict.BLOCK:
                 # Short-circuit: later verdicts about rejected content go unused (D9).
                 reasons.append(f"{plugin.name}: BLOCK")
-                return self._blocked(content, types, severities, contributors, reasons)
+                blocked = True
+                break
 
             if _STRICTNESS[said] > _STRICTNESS[verdict]:
                 verdict = said
 
-        redacted, _ = redact(content, spans)  # every span was validated on arrival
+        if blocked:
+            # As it came: nothing stores blocked content, and redacting it loses evidence.
+            return Result(
+                Verdict.BLOCK,
+                content,
+                self._provenance(Verdict.BLOCK, types, severities, contributors),
+                reasons,
+            )
+
+        redacted, rejected = redact(content, spans)
+        if rejected:
+            # Out of reach while this and `_spans_of` share `valid_span`, and
+            # kept because the alternative is content returned under-redacted:
+            # the list was discarded here before, which is how that would read.
+            reasons.append(f"a validated span was refused: {len(rejected)}")
+            return Result(
+                Verdict.BLOCK,
+                content,
+                self._provenance(Verdict.BLOCK, types, severities, contributors),
+                reasons,
+            )
         return Result(
             verdict, redacted, self._provenance(verdict, types, severities, contributors), reasons
         )
@@ -234,22 +257,6 @@ class Runtime:
         suffix = "" if plugin.on_error is OnError.BLOCK else f" (on_error={plugin.on_error})"
         reasons.append(f"{plugin.name}: {detail}{suffix}")
         return plugin.on_error is OnError.BLOCK
-
-    def _blocked(
-        self,
-        content: str,
-        types: set[str],
-        severities: set[str],
-        contributors: list[str],
-        reasons: list[str],
-    ) -> Result:
-        """Blocked content comes back as is: nothing stores it, and redacting it loses evidence."""
-        return Result(
-            Verdict.BLOCK,
-            content,
-            self._provenance(Verdict.BLOCK, types, severities, contributors),
-            reasons,
-        )
 
     @staticmethod
     def _provenance(

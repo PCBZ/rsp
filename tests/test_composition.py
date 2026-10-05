@@ -8,11 +8,9 @@ here against this one.
 
 from __future__ import annotations
 
-import sys
-
 import pytest
 
-from plugins import ECHO
+from plugins import ECHO, script
 from rsp.runtime import ConfigError, OnError, Plugin, Runtime, Verdict
 
 
@@ -36,21 +34,11 @@ def fake(
         "req = json.load(sys.stdin)\n"
         f"print(json.dumps({declaration!r} if req.get('hook') == 'handshake' else {response!r}))\n"
     )
-    return Plugin(name=name, command=[sys.executable, "-c", body], on_error=on_error)
+    return Plugin(name=name, command=script(body), on_error=on_error)
 
 
 def runtime(*plugins: Plugin) -> Runtime:
     return Runtime(plugins)
-
-
-def _handshake_then(statement: str) -> str:
-    declaration = {"rsp_version": "0.1", "name": "x", "version": "1.0", "hooks": ["on_chunk"]}
-    return (
-        "import json, sys\n"
-        "req = json.load(sys.stdin)\n"
-        f"if req.get('hook') == 'handshake': print(json.dumps({declaration!r}))\n"
-        f"else: {statement}\n"
-    )
 
 
 def test_strictest_verdict_wins() -> None:
@@ -283,3 +271,25 @@ def test_a_voided_response_contributes_nothing_to_provenance() -> None:
     assert result.provenance == {"rsp.verdict": "ALLOW"}
     assert not any("could not point at" in reason for reason in result.reasons)
     assert any("unusable spans" in reason for reason in result.reasons)
+
+
+def test_a_span_refused_at_the_last_step_blocks_rather_than_under_redacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Out of reach, and the reason it is written down.
+
+    `redact` returns what it would not apply, and that list used to be
+    discarded: were the two validations ever to disagree, the content came
+    back with a secret still in it and a REDACT verdict saying otherwise.
+    """
+    from rsp import runtime as module
+    from rsp.spans import Span
+
+    refused = Span(start=0, end=3, type="made-up", replacement="[X]", severity=None, order=0)
+    monkeypatch.setattr(module, "redact", lambda content, spans: (content, [refused]))
+
+    result = runtime(Plugin(name="echo", command=ECHO)).evaluate("on_chunk", "密钥 secret")
+
+    assert result.verdict is Verdict.BLOCK
+    assert "secret" in result.content, "blocked content comes back as it came"
+    assert any("refused" in reason for reason in result.reasons), result.reasons

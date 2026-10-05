@@ -28,7 +28,7 @@ expect 0 "an escaped NUL in the content" \
     '{"rsp_version":"0.1","hook":"on_chunk","content":"a\\u0000b"}'
 
 # Bounded, because failing here is a hang rather than a wrong answer.
-loud=$(cd "$(dirname "$0")" && pwd)/loud-gitleaks.sh
+loud=$(cd "$(dirname "$0")/../.." && pwd)/testdata/loud-gitleaks.sh
 printf '%b' "$ok" | RSP_GITLEAKS=$loud "$binary" >/dev/null 2>&1 &
 pid=$!
 (sleep 30; kill -9 "$pid" 2>/dev/null) 2>/dev/null &

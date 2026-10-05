@@ -44,9 +44,14 @@ uv run pytest
 - Strictest verdict wins, `BLOCK` short-circuits (D9).
 - `guards.py` and each plugin adapter contain no detection logic and stay
   small: under 80 lines of code, counting neither docstrings nor comments nor
-  blank lines. A language that puts a closing brace or a struct tag on its own
-  line pays a fixed tax that is not growth, so those lines do not count either
-  — `examples/gitleaks-go/gitleaks.go` is 136 lines, of which 80 do work. A
+  blank lines. The budget is on `guards.py` and on the file wrapping the tool
+  — `gitleaks.c`, `Gitleaks.java`, `gitleaks.rs` — not on everything beside
+  it. A strict gate reads the bytes T4 binds before anything is deserialised,
+  and a span helper converts someone else's positions; those are other jobs,
+  in other files, and unbudgeted is not unbounded. A language that puts a
+  closing brace or a struct tag on its own line pays a fixed tax that is not
+  growth, so those lines do not count either —
+  `examples/gitleaks-go/gitleaks.go` is 136 lines, of which 80 do work. A
   test does the counting, so a disagreement is about the work rather than
   about the arithmetic. Judge the work, and say which it is when the number
   goes over.

@@ -25,6 +25,21 @@ def tag(node: BaseNode, provenance: dict[str, Any]) -> None:
         excluded.extend(key for key in provenance if key not in excluded)
 
 
+def _judged(runtime: Runtime, node: BaseNode, hook: str, metadata: dict[str, Any]) -> Result:
+    """Judge one node and apply the verdict to it, except for dropping it.
+
+    Dropping is the caller's: one guard reports it and the other shrinks a
+    result set (K1, Q3).
+    """
+    result = runtime.evaluate(hook=hook, content=node.get_content(), metadata=metadata)
+    if not result.blocked:
+        if result.verdict is Verdict.REDACT:
+            # span application is the runtime's job (D6)
+            node.set_content(result.content)
+        tag(node, result.provenance)
+    return result
+
+
 class RSPIngestGuard(TransformComponent):
     """on_chunk. A blocked node is not returned, so it is never embedded.
 
@@ -39,19 +54,16 @@ class RSPIngestGuard(TransformComponent):
     def __call__(self, nodes: Sequence[BaseNode], **kwargs: Any) -> Sequence[BaseNode]:
         kept: list[BaseNode] = []
         for node in nodes:
-            result = self.runtime.evaluate(
-                hook="on_chunk",
-                content=node.get_content(),
-                metadata={"source": node.metadata.get("file_path"), "node_id": node.id_},
+            result = _judged(
+                self.runtime,
+                node,
+                "on_chunk",
+                {"source": node.metadata.get("file_path"), "node_id": node.id_},
             )
             if result.blocked:
                 if self.on_block is not None:
                     self.on_block(node, result)
                 continue
-            if result.verdict is Verdict.REDACT:
-                # span application is the runtime's job (D6)
-                node.set_content(result.content)
-            tag(node, result.provenance)
             kept.append(node)
         return kept
 
@@ -69,16 +81,9 @@ class RSPRetrieveGuard(BaseNodePostprocessor):
     ) -> list[NodeWithScore]:
         kept: list[NodeWithScore] = []
         for scored in nodes:
-            result = self.runtime.evaluate(
-                hook="on_retrieve",
-                content=scored.node.get_content(),
-                metadata={"node_id": scored.node.id_, "score": scored.score},
-            )
-            if result.blocked:
+            metadata = {"node_id": scored.node.id_, "score": scored.score}
+            if _judged(self.runtime, scored.node, "on_retrieve", metadata).blocked:
                 continue
-            if result.verdict is Verdict.REDACT:
-                scored.node.set_content(result.content)
-            tag(scored.node, result.provenance)
             kept.append(scored)
         return kept
 

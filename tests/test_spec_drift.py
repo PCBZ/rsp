@@ -296,3 +296,25 @@ def test_the_budget_covers_every_adapter_and_the_guard() -> None:
     ]
     assert sorted(covered) == ADAPTERS, covered
     assert ROOT / "rsp" / "guards.py" in BUDGETED
+
+
+SHARED_FIXTURES = sorted(p.name for p in (ROOT / "examples" / "testdata").glob("*.sh"))
+
+
+def test_no_adapter_keeps_its_own_copy_of_a_shared_stand_in() -> None:
+    """Five held this one, three byte for byte, and each drifted at its own pace.
+
+    By name: a copy under another name is a different stand-in, and a copy
+    under this one is the duplication that was just removed.
+    """
+    assert SHARED_FIXTURES, "examples/testdata holds no stand-in"
+    tracked = subprocess.run(
+        ["git", "ls-files", "examples"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.split()
+    elsewhere = [
+        name
+        for name in tracked
+        if pathlib.Path(name).name in SHARED_FIXTURES
+        and pathlib.Path(name).parent != pathlib.Path("examples/testdata")
+    ]
+    assert not elsewhere, f"a shared stand-in has a private copy: {elsewhere}"

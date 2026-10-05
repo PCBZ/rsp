@@ -17,7 +17,7 @@ public struct Request: Decodable {
     /// a field it had marked optional.
 }
 
-public struct Span: Encodable, Equatable {
+public struct Span: Codable, Equatable {
     public let start: Int
     public let end: Int
     public let type: String

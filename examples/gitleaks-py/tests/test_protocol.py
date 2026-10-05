@@ -12,7 +12,7 @@ import pathlib
 import pytest
 from protocol import REPLACEMENT, respond
 
-FAKE = pathlib.Path(__file__).parent.parent / "testdata" / "fake-gitleaks.sh"
+FAKE = pathlib.Path(__file__).parents[2] / "testdata" / "fake-gitleaks.sh"
 KEY = "AKIALALEMEL33243OLIB"
 
 
@@ -125,7 +125,11 @@ def test_refuses_a_report_that_is_not_a_list(fake):
 
 
 def test_an_empty_report_with_a_clean_exit_is_still_a_clean_chunk(fake):
-    """The reading that must survive the two above."""
+    """On a chunk that does hold a key, or this is the first test again.
+
+    Nothing written means nothing found only when the status says the run was
+    clean, which is what the two tests above turn on.
+    """
     fake("", "0")
 
-    assert respond(chunk("nothing here")) == {"verdict": "ALLOW"}
+    assert respond(chunk(KEY)) == {"verdict": "ALLOW"}

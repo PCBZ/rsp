@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { scan } from "../src/gitleaks.ts";
 
-const FAKE = path.join(import.meta.dirname, "fixtures", "fake-gitleaks.sh");
+const FAKE = path.join(import.meta.dirname, "..", "..", "testdata", "fake-gitleaks.sh");
 const SAVED = { ...process.env };
 
 afterEach(() => {
