@@ -44,6 +44,36 @@ uv sync --extra llamaindex
 uv run rsp ingest demo/sample-docs --config demo/rsp.toml   # needs gitleaks and node
 ```
 
+## Use it
+
+Two guards, one for each hook LlamaIndex gives a seam for:
+
+```python
+from llama_index.core.ingestion import IngestionPipeline
+from llama_index.core.node_parser import SentenceSplitter
+
+from rsp.config import load
+from rsp.guards import RSPIngestGuard, RSPRetrieveGuard
+from rsp.runtime import Runtime
+
+runtime = Runtime(load("rsp.toml"))  # every plugin handshakes here, or this raises
+
+indexed = IngestionPipeline(
+    transformations=[SentenceSplitter(), RSPIngestGuard(runtime=runtime), embedding]
+).run(documents=documents)
+
+kept = RSPRetrieveGuard(runtime=runtime).postprocess_nodes(retrieved, query_str=query)
+```
+
+The ingest guard goes after the splitter and before the embedding, which is
+the whole point: BLOCK drops the chunk so that nothing ever stores it, and
+REDACT rewrites it before anything reads it. The retrieve guard does the same
+to a result set. Both tag what they keep with `rsp.verdict` and `rsp.plugins`,
+and keep those out of the embedding and the LLM.
+
+`rsp.toml` is this host's convention, not the protocol's — `demo/rsp.toml` is
+one, and a host that prefers another format hands `Runtime` the same list.
+
 ## Check your own plugin
 
 ```console
