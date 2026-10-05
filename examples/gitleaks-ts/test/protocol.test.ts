@@ -97,11 +97,13 @@ describe("respond", () => {
   });
 
   it("reads an empty report with a clean exit as a clean chunk", () => {
-    // The reading that has to survive the test above.
+    // On a chunk that does hold a key, which is the reading that has to
+    // survive the test above: nothing written means nothing found only when
+    // the status says the run was clean.
     process.env.RSP_GITLEAKS = FAKE;
     process.env.FAKE_GITLEAKS_REPORT = "";
     process.env.FAKE_GITLEAKS_EXIT = "0";
-    const response = respond({ hook: "on_chunk", content: "anything" });
+    const response = respond({ hook: "on_chunk", content: `holds ${KEY}` });
     assert.equal("verdict" in response && response.verdict, "ALLOW");
   });
 

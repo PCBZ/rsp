@@ -19,13 +19,7 @@ struct Case: Decodable {
     let comment: String
     let content: String
     let findings: [Finding]
-    let spans: [ExpectedSpan]
-}
-
-struct ExpectedSpan: Decodable, Equatable {
-    let start: Int
-    let end: Int
-    let type: String
+    let spans: [Span]
 }
 
 struct Table: Decodable {
@@ -44,7 +38,7 @@ func theSharedTable() throws {
         if test.spans.isEmpty && !test.findings.isEmpty {
             check(produced == nil, test.comment)
         } else {
-            let got = (produced ?? []).map { ExpectedSpan(start: $0.start, end: $0.end, type: $0.type) }
+            let got = produced ?? []
             check(got == test.spans, test.comment)
         }
     }

@@ -37,26 +37,35 @@ func refuseLeniency(raw []byte) error {
 	return walk(decoder)
 }
 
-// walk reads one value, refusing a repeated key or an unsafe integer.
+// walk reads the message as a sequence of values, to the end or to the first
+// refusal. A parse error is Unmarshal's to name.
 func walk(decoder *json.Decoder) error {
 	for {
 		token, err := decoder.Token()
 		if err != nil {
-			return nil // end of the message, or a parse error Unmarshal will name
+			return nil
 		}
-		switch value := token.(type) {
-		case json.Delim:
-			if value == '{' {
-				if err := object(decoder); err != nil {
-					return err
-				}
-			}
-		case json.Number:
-			if err := checkNumber(value); err != nil {
-				return err
-			}
+		if err := value(decoder, token); err != nil {
+			return err
 		}
 	}
+}
+
+// value reads whatever `token` opened: the one switch that `object` and
+// `array` used to carry a copy of each.
+func value(decoder *json.Decoder, token json.Token) error {
+	switch opened := token.(type) {
+	case json.Number:
+		return checkNumber(opened)
+	case json.Delim:
+		switch opened {
+		case '{':
+			return object(decoder)
+		case '[':
+			return array(decoder)
+		}
+	}
+	return nil
 }
 
 // object reads one object's members, refusing a key it has already seen.
@@ -73,25 +82,12 @@ func object(decoder *json.Decoder) error {
 		}
 		seen[name] = true
 
-		value, err := decoder.Token()
+		token, err := decoder.Token()
 		if err != nil {
 			return err
 		}
-		switch inner := value.(type) {
-		case json.Delim:
-			if inner == '{' {
-				if err := object(decoder); err != nil {
-					return err
-				}
-			} else if inner == '[' {
-				if err := array(decoder); err != nil {
-					return err
-				}
-			}
-		case json.Number:
-			if err := checkNumber(inner); err != nil {
-				return err
-			}
+		if err := value(decoder, token); err != nil {
+			return err
 		}
 	}
 	_, err := decoder.Token() // the closing brace
@@ -104,21 +100,8 @@ func array(decoder *json.Decoder) error {
 		if err != nil {
 			return err
 		}
-		switch inner := token.(type) {
-		case json.Delim:
-			if inner == '{' {
-				if err := object(decoder); err != nil {
-					return err
-				}
-			} else if inner == '[' {
-				if err := array(decoder); err != nil {
-					return err
-				}
-			}
-		case json.Number:
-			if err := checkNumber(inner); err != nil {
-				return err
-			}
+		if err := value(decoder, token); err != nil {
+			return err
 		}
 	}
 	_, err := decoder.Token()
