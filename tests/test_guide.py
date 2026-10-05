@@ -102,12 +102,14 @@ def test_the_readme_shows_a_host_how_to_use_it() -> None:
 def test_the_readme_snippet_runs_and_guards(tmp_path: pathlib.Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """Run as written, against the echo plugin, with what a reader supplies supplied.
 
-    A snippet nobody runs documents the host it was written against. Only
-    `embedding`, `documents`, `retrieved` and `query` are bound here: every
-    name the reader would recognise as ours comes from the snippet's own
-    imports.
+    A snippet nobody runs documents the host it was written against. What is
+    bound here is what a reader already has — a pipeline, a splitter, an
+    embedding, documents, results, a query. Every name that is ours comes
+    from the snippet's own imports, so renaming one of them fails this.
     """
     from llama_index.core.embeddings import MockEmbedding
+    from llama_index.core.ingestion import IngestionPipeline
+    from llama_index.core.node_parser import SentenceSplitter
     from llama_index.core.schema import Document, NodeWithScore, TextNode
 
     blocked = "This paragraph contains RSP-BLOCK and must never be stored."
@@ -118,6 +120,8 @@ def test_the_readme_snippet_runs_and_guards(tmp_path: pathlib.Path, monkeypatch)
     monkeypatch.chdir(tmp_path)
 
     namespace: dict[str, object] = {
+        "IngestionPipeline": IngestionPipeline,
+        "SentenceSplitter": SentenceSplitter,
         "embedding": MockEmbedding(embed_dim=8),
         "documents": [Document(text=blocked), Document(text=secret)],
         "retrieved": [NodeWithScore(node=TextNode(text=blocked), score=0.9)],

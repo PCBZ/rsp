@@ -46,12 +46,7 @@ uv run rsp ingest demo/sample-docs --config demo/rsp.toml   # needs gitleaks and
 
 ## Use it
 
-Two guards, one for each hook LlamaIndex gives a seam for:
-
 ```python
-from llama_index.core.ingestion import IngestionPipeline
-from llama_index.core.node_parser import SentenceSplitter
-
 from rsp.config import load
 from rsp.guards import RSPIngestGuard, RSPRetrieveGuard
 from rsp.runtime import Runtime
@@ -66,13 +61,11 @@ kept = RSPRetrieveGuard(runtime=runtime).postprocess_nodes(retrieved, query_str=
 ```
 
 The ingest guard goes after the splitter and before the embedding, which is
-the whole point: BLOCK drops the chunk so that nothing ever stores it, and
-REDACT rewrites it before anything reads it. The retrieve guard does the same
-to a result set. Both tag what they keep with `rsp.verdict` and `rsp.plugins`,
-and keep those out of the embedding and the LLM.
+the whole point: a blocked chunk is never embedded and never stored. The
+retrieve guard catches what an index already held.
 
-`rsp.toml` is this host's convention, not the protocol's — `demo/rsp.toml` is
-one, and a host that prefers another format hands `Runtime` the same list.
+[`examples/host`](examples/host) is that, whole and runnable — three
+documents, one refused, one redacted, no API key.
 
 ## Check your own plugin
 
@@ -94,6 +87,7 @@ and the host cases.
 | `conformance/` | cases, a runner, and a plugin that misbehaves on request |
 | `rsp/` | the reference host — five layers, one-way imports, zero dependencies |
 | `plugins/rsp-echo` | the reference plugin, whose verdicts are chosen by markers |
+| `examples/host` | a whole host in one file, runnable with no API key |
 | `examples/gitleaks-{ts,go,rs,py,c,java,swift}` | the same real scanner wrapped seven times, in seven languages |
 | `demo/` | eight documents, two of them with fabricated credentials |
 

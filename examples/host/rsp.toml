@@ -1,0 +1,5 @@
+# A relative command resolves against this file, not against the directory
+# you happen to be standing in.
+[[plugins]]
+name = "echo"
+command = ["python3", "../../plugins/rsp-echo/main.py"]
