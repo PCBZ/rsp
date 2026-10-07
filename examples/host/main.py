@@ -1,7 +1,9 @@
-"""A whole host, as small as one gets: three documents in, a guarded index out.
+"""A whole host, as small as one gets: four documents in, a guarded index out.
 
-Runs with no network and no API key — the plugin is `plugins/rsp-echo`, which
-picks its verdict from markers in the text, and the embedding is a stand-in.
+Two plugins judge every chunk — `plugins/rsp-echo` in Python and
+`examples/gitleaks-go` in Go — and nothing below knows which is which. The Go
+one needs its toolchain and the binary it wraps; the Python one needs neither,
+and the embedding is a stand-in, so there is no API key either.
 
     uv run --extra llamaindex python examples/host/main.py
 """
@@ -9,6 +11,7 @@ picks its verdict from markers in the text, and the embedding is a stand-in.
 from __future__ import annotations
 
 import pathlib
+import shutil
 
 from llama_index.core import VectorStoreIndex
 from llama_index.core.embeddings import MockEmbedding
@@ -18,10 +21,14 @@ from llama_index.core.schema import BaseNode, Document, TextNode
 
 from rsp.config import load
 from rsp.guards import RSPIngestGuard, RSPRetrieveGuard
-from rsp.runtime import Result, Runtime
+from rsp.runtime import Plugin, Result, Runtime
 
 HERE = pathlib.Path(__file__).parent
 QUERY = "what should I read first"
+# What each configured plugin needs before it can be started. The host needs
+# none of it — it starts a command and reads JSON back — so this is the
+# example saying which of the two this machine can run, not the protocol.
+NEEDS = {"echo": ("python3",), "gitleaks-go": ("go", "gitleaks")}
 
 
 def documents() -> list[Document]:
@@ -41,13 +48,28 @@ def documents() -> list[Document]:
     return found
 
 
+def plugins() -> list[Plugin]:
+    """The configured plugins this machine can start, saying which it skipped."""
+    runnable = []
+    for plugin in load(HERE / "rsp.toml"):
+        needs = NEEDS.get(plugin.name, (plugin.command[0],))
+        absent = [tool for tool in needs if shutil.which(tool) is None]
+        if absent:
+            print(f"skipping {plugin.name}: no {', '.join(absent)}")
+        else:
+            runnable.append(plugin)
+    return runnable
+
+
 def main() -> None:
-    runtime = Runtime(load(HERE / "rsp.toml"))  # every plugin handshakes here, or this raises
+    runtime = Runtime(plugins())  # every plugin handshakes here, or this raises
+    answering = ", ".join(plugin.name for plugin in runtime.plugins)
+    print(f"plugins: {answering} — each judges every chunk")
     embedding = MockEmbedding(embed_dim=8)
     refused: list[str] = []
 
     def record(node: BaseNode, result: Result) -> None:
-        refused.append(f"{node.metadata.get('file_path')}: {result.provenance['rsp.verdict']}")
+        refused.append(f"{node.metadata.get('file_path'):24} {result.reasons[0]}")
 
     # The guard sits after the splitter and before the embedding, which is the
     # whole claim: a blocked chunk is never embedded and never stored, so there
@@ -66,7 +88,11 @@ def main() -> None:
     for node in indexed:
         verdict = node.metadata.get("rsp.verdict")
         if verdict != "ALLOW":
-            print(f"  {verdict.lower():8} {node.metadata.get('file_path')}")
+            # The type, not the plugin: provenance names everyone who answered,
+            # and both of these answer every chunk. What came back says which
+            # of them had something to say about it.
+            found = ", ".join(node.metadata.get("rsp.types", ()))
+            print(f"  {verdict.lower():8} {node.metadata.get('file_path'):24} {found}")
 
     # An index predating the guard, or written by something else: the chunk is
     # already in the store, so the only place left to catch it is on the way out.

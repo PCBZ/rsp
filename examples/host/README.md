@@ -1,31 +1,60 @@
 # A host, in one file
 
-What a RAG pipeline looks like with RSP in it. Three documents in, a guarded
-index out, and nothing to install:
+What a RAG pipeline looks like with RSP in it. Four documents in, a guarded
+index out, and two plugins in two languages judging every chunk:
 
 ```console
 $ uv run --extra llamaindex python examples/host/main.py
-2 chunks indexed, 1 refused
-  blocked  runbook-incident.md: BLOCK
-  redact   deploy-notes.md
+plugins: echo, gitleaks-go — each judges every chunk
+3 chunks indexed, 1 refused
+  blocked  runbook-incident.md      echo: marker RSP-BLOCK
+  redact   deploy-notes.md          echo-test
+  redact   mirror-credentials.md    aws-access-token
 
-retrieved 3, answered with 2
-  kept     onboarding.md
+retrieved 4, answered with 3
   kept     deploy-notes.md
+  kept     onboarding.md
+  kept     mirror-credentials.md
 ```
 
-No network, no API key, no gitleaks: the plugin is `plugins/rsp-echo`, which
-picks its verdict from markers in the text, and the embedding is a stand-in.
-The documents are fabricated, and none of them holds a real credential.
+## Two languages, one pipeline
 
-## What the two guards are for
+`echo` is Python and standard library only; `gitleaks-go` is Go wrapping the
+gitleaks binary. **The host code is the same either way** — it starts a
+command, writes one JSON object, reads one back. Nothing in `main.py` knows
+what either is written in, and nothing would change if you added a third in
+Rust or Swift: `examples/` has five more.
+
+Which one found what is in the last column. `echo-test` is Python's, from the
+word *secret*; `aws-access-token` is gitleaks', from a key shaped the way real
+ones are. Each caught something the other did not.
+
+That column is the finding's type, not the plugin's name, because provenance
+records everyone who **answered** — and both of these answer every chunk,
+including the ones where they find nothing.
+
+## Running it with less
+
+The Python half needs nothing installed:
+
+```console
+$ uv run --extra llamaindex python examples/host/main.py
+skipping gitleaks-go: no go, gitleaks
+plugins: echo — each judges every chunk
+3 chunks indexed, 1 refused
+  blocked  runbook-incident.md      echo: marker RSP-BLOCK
+  redact   deploy-notes.md          echo-test
+```
+
+Note what is missing: `mirror-credentials.md` is indexed with the key still in
+it. A host is exactly as strict as the plugins it can start, which is the
+argument for the handshake failing loudly rather than a plugin failing quietly.
+
+## The two guards
 
 **`RSPIngestGuard` runs after the splitter and before the embedding.** That is
 the whole claim: a blocked chunk is never embedded and never stored, so there
-is nothing to delete afterwards and nothing recoverable from a vector. One
-document here is refused outright and one comes back with its span rewritten —
-same pipeline, different verdict, decided by a plugin this code knows nothing
-about.
+is nothing to delete afterwards and nothing recoverable from a vector.
 
 **`RSPRetrieveGuard` runs on what came back.** The example puts a node into
 the store directly, the way an index built before anyone installed a guard
@@ -36,10 +65,10 @@ An index you did not fill is the reason this second seam exists.
 
 | | |
 |---|---|
-| `main.py` | the whole host, about sixty lines |
-| `rsp.toml` | one plugin, named by a path relative to this file |
-| `docs/` | three documents: one refused, one redacted, one clean |
+| `main.py` | the whole host, about seventy lines |
+| `rsp.toml` | two plugins, named by paths relative to this file |
+| `docs/` | four documents: one refused, two redacted, one clean |
 
-A real host swaps the stand-in embedding for its own and `rsp-echo` for a
-scanner — `examples/gitleaks-py` wraps gitleaks in thirty lines, and six other
-languages do the same thing beside it. Nothing else changes.
+Every document here is fabricated, including the key. Swap `rsp-echo` for a
+scanner you trust and the stand-in embedding for a real one; nothing else
+changes.

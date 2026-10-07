@@ -64,8 +64,9 @@ The ingest guard goes after the splitter and before the embedding, which is
 the whole point: a blocked chunk is never embedded and never stored. The
 retrieve guard catches what an index already held.
 
-[`examples/host`](examples/host) is that, whole and runnable — three
-documents, one refused, one redacted, no API key.
+[`examples/host`](examples/host) is that, whole and runnable: four documents
+through one pipeline, judged by a Python plugin and a Go one at the same time.
+The host code does not know which is which.
 
 ## Check your own plugin
 
@@ -87,7 +88,7 @@ and the host cases.
 | `conformance/` | cases, a runner, and a plugin that misbehaves on request |
 | `rsp/` | the reference host — five layers, one-way imports, zero dependencies |
 | `plugins/rsp-echo` | the reference plugin, whose verdicts are chosen by markers |
-| `examples/host` | a whole host in one file, runnable with no API key |
+| `examples/host` | a whole host in one file, judged by a Python plugin and a Go one |
 | `examples/gitleaks-{ts,go,rs,py,c,java,swift}` | the same real scanner wrapped seven times, in seven languages |
 | `demo/` | eight documents, two of them with fabricated credentials |
 
