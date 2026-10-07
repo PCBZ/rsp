@@ -1,0 +1,13 @@
+# Two plugins, two languages, one pipeline. A relative command resolves
+# against this file rather than against the directory you are standing in.
+
+# Python, stdlib only: picks its verdict from markers in the text.
+[[plugins]]
+name = "echo"
+command = ["python3", "../../plugins/rsp-echo/main.py"]
+
+# Go, wrapping the gitleaks binary. The host learns nothing about either
+# beyond what the handshake says.
+[[plugins]]
+name = "gitleaks-go"
+command = ["go", "run", "-C", "../gitleaks-go", "."]

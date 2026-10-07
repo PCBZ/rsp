@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 
 import pytest
 
-from plugins import ROOT
+from plugins import ECHO, ROOT
 from rsp.spans import Span, valid_span
 
 GUIDE = ROOT / "WRITING-A-PLUGIN.md"
@@ -83,3 +84,52 @@ def test_the_invented_transcripts_are_valid_protocol() -> None:
             # The host's own predicate rather than a second copy of S3.
             assert valid_span(Span(span["start"], span["end"]), content), f"S3: {span}"
             assert span["start"] < span["end"], "an empty span redacts nothing (S3)"
+
+
+README = ROOT / "README.md"
+# The one block under "Use it": prose a reader is invited to copy, which has
+# to run rather than merely still be quotable.
+USE_IT = re.search(
+    r"## Use it\n.*?```python\n(.*?)```", README.read_text(encoding="utf-8"), re.DOTALL
+)
+
+
+def test_the_readme_shows_a_host_how_to_use_it() -> None:
+    """Otherwise the test below passes by finding nothing."""
+    assert USE_IT, "README no longer carries a Python block under `## Use it`"
+
+
+def test_the_readme_snippet_runs_and_guards(tmp_path: pathlib.Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Run as written, against the echo plugin, with what a reader supplies supplied.
+
+    A snippet nobody runs documents the host it was written against. What is
+    bound here is what a reader already has — a pipeline, a splitter, an
+    embedding, documents, results, a query. Every name that is ours comes
+    from the snippet's own imports, so renaming one of them fails this.
+    """
+    from llama_index.core.embeddings import MockEmbedding
+    from llama_index.core.ingestion import IngestionPipeline
+    from llama_index.core.node_parser import SentenceSplitter
+    from llama_index.core.schema import Document, NodeWithScore, TextNode
+
+    blocked = "This paragraph contains RSP-BLOCK and must never be stored."
+    secret = "The key is a secret value you must not index."
+    (tmp_path / "rsp.toml").write_text(
+        f'[[plugins]]\nname = "echo"\ncommand = {json.dumps(ECHO)}\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    namespace: dict[str, object] = {
+        "IngestionPipeline": IngestionPipeline,
+        "SentenceSplitter": SentenceSplitter,
+        "embedding": MockEmbedding(embed_dim=8),
+        "documents": [Document(text=blocked), Document(text=secret)],
+        "retrieved": [NodeWithScore(node=TextNode(text=blocked), score=0.9)],
+        "query": "anything",
+    }
+    exec(USE_IT.group(1), namespace)  # noqa: S102
+
+    indexed = [node.get_content() for node in namespace["indexed"]]  # type: ignore[union-attr]
+    assert not [text for text in indexed if "RSP-BLOCK" in text], indexed
+    assert any("[REDACTED:echo-test]" in text for text in indexed), indexed
+    assert namespace["kept"] == [], "a blocked node should leave the result set"

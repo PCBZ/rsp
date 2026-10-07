@@ -26,8 +26,8 @@ convenience.
 
 ```bash
 uv sync
-uv run ruff check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/
-uv run ruff format --check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/
+uv run ruff check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/ examples/host/
+uv run ruff format --check rsp/ tests/ plugins/ conformance/ examples/gitleaks-py/ examples/host/
 uv run pytest
 ```
 

@@ -44,6 +44,30 @@ uv sync --extra llamaindex
 uv run rsp ingest demo/sample-docs --config demo/rsp.toml   # needs gitleaks and node
 ```
 
+## Use it
+
+```python
+from rsp.config import load
+from rsp.guards import RSPIngestGuard, RSPRetrieveGuard
+from rsp.runtime import Runtime
+
+runtime = Runtime(load("rsp.toml"))  # every plugin handshakes here, or this raises
+
+indexed = IngestionPipeline(
+    transformations=[SentenceSplitter(), RSPIngestGuard(runtime=runtime), embedding]
+).run(documents=documents)
+
+kept = RSPRetrieveGuard(runtime=runtime).postprocess_nodes(retrieved, query_str=query)
+```
+
+The ingest guard goes after the splitter and before the embedding, which is
+the whole point: a blocked chunk is never embedded and never stored. The
+retrieve guard catches what an index already held.
+
+[`examples/host`](examples/host) is that, whole and runnable: four documents
+through one pipeline, judged by a Python plugin and a Go one at the same time.
+The host code does not know which is which.
+
 ## Check your own plugin
 
 ```console
@@ -64,6 +88,7 @@ and the host cases.
 | `conformance/` | cases, a runner, and a plugin that misbehaves on request |
 | `rsp/` | the reference host — five layers, one-way imports, zero dependencies |
 | `plugins/rsp-echo` | the reference plugin, whose verdicts are chosen by markers |
+| `examples/host` | a whole host in one file, judged by a Python plugin and a Go one |
 | `examples/gitleaks-{ts,go,rs,py,c,java,swift}` | the same real scanner wrapped seven times, in seven languages |
 | `demo/` | eight documents, two of them with fabricated credentials |
 
