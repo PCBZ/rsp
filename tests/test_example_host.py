@@ -24,8 +24,21 @@ TRANSCRIPTS = re.compile(r"```console\n\$ [^\n]+\n(.*?)```", re.DOTALL)
 GO_TOOLS = ("go", "gitleaks")
 
 
+@pytest.fixture
+def without_go(tmp_path: pathlib.Path) -> str:
+    """A PATH holding python3 and nothing else, so neither Go tool can be found.
+
+    Narrowing to `/usr/bin:/bin` asserted the machine instead: a runner with
+    Go in /usr/bin reports one missing tool where this expects two.
+    """
+    only = tmp_path / "bin"
+    only.mkdir()
+    (only / "python3").symlink_to(sys.executable)
+    return str(only)
+
+
 def run(where: pathlib.Path = ROOT, *, path: str | None = None) -> str:
-    """`path` narrows PATH, which is how a reader without a Go toolchain runs it."""
+    """`path` replaces PATH, which is how a reader without a Go toolchain runs it."""
     done = subprocess.run(
         [sys.executable, str(HOST / "main.py")],
         cwd=where,
@@ -56,9 +69,9 @@ def test_each_language_catches_what_the_other_does_not() -> None:
     assert "redact   mirror-credentials.md    aws-access-token" in printed, printed
 
 
-def test_the_python_plugin_alone_still_runs_and_says_what_it_lost() -> None:
+def test_the_python_plugin_alone_still_runs_and_says_what_it_lost(without_go: str) -> None:
     """A host is as strict as the plugins it can start, and should say which it could not."""
-    printed = run(path="/usr/bin:/bin")
+    printed = run(path=without_go)
 
     assert "skipping gitleaks-go: no go, gitleaks" in printed, printed
     assert "plugins: echo " in printed, printed
@@ -90,12 +103,12 @@ def test_it_runs_from_any_directory(tmp_path: pathlib.Path) -> None:
     assert "plugins: echo, gitleaks-go" in run(tmp_path)
 
 
-def test_both_readme_transcripts_are_what_it_prints() -> None:
+def test_both_readme_transcripts_are_what_it_prints(without_go: str) -> None:
     """A transcript nobody reruns is the output of a version that is gone."""
     shown = TRANSCRIPTS.findall((HOST / "README.md").read_text(encoding="utf-8"))
     assert len(shown) == 2, "the README no longer shows a run with and without the Go half"
 
-    printed = (both(), run(path="/usr/bin:/bin"))
+    printed = (both(), run(path=without_go))
     for transcript, output in zip(shown, printed, strict=True):
         for line in (one for one in transcript.splitlines() if one.strip()):
             assert line in output, f"the README shows a line the program does not print: {line!r}"
