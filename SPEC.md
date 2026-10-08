@@ -344,6 +344,15 @@ JSON. Both are covered by the reference host's own tests, which is evidence
 for it and for nothing else. `K1` and `K2` are about storage, which a host
 case cannot see unless the host offers somewhere to look.
 
+`K1`'s evidence is narrower still, and an implementer needs the boundary.
+The guard keeps blocked content out of the pipeline it sits in; it cannot
+reach a store the framework writes beside that pipeline. A LlamaIndex
+docstore with `store_doc_text` left at its default keeps the whole document,
+blocked or not — a document cache, which `K1` names. The reference host
+configures none for that reason, and a test pins the behaviour so that the
+hole is recorded rather than discovered. A host that adds one satisfies the
+guard and breaks the clause.
+
 *Rationale for stating it: an implementer needs to know which clauses have been
 tested and which are still assertions. Evidence is a conformance case, which
 binds every implementation, or the reference host's own tests, which bind one
