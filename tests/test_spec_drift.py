@@ -119,6 +119,34 @@ def test_coverage_table_matches_the_cases_on_disk() -> None:
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"
 
 
+def test_every_clause_is_in_one_row_of_the_coverage_table() -> None:
+    """The second row is what permits a tag, so nothing may fall between them.
+
+    §10 lets a clause ship on a case, which binds every implementation, or on
+    the reference host's tests, which bind one. A clause in neither row has
+    neither, and the rule is that it is deleted instead.
+    """
+    found = re.findall(r"\| (?:\*\*)?([\w ]+?)(?:\*\*)? \| ([A-Z0-9, ]+) \|", SPEC)
+    # Before the dict: a repeated label overwrites, and two identical rows then
+    # read as one.
+    assert [label for label, _ in found] == ["Covered", "Reference host only"], found
+    rows = dict(found)
+
+    listed = [clause for row in rows.values() for clause in clauses_in(row)]
+    # A repeat makes the lists differ too, so this is the only assertion needed.
+    assert sorted(listed) == sorted(CLAUSES), f"the table lists {len(listed)} of {len(CLAUSES)}"
+
+
+def test_the_hole_section_10_names_is_still_pinned() -> None:
+    """§10 cites a test for the docstore that keeps blocked text; a citation is not evidence."""
+    assert "store_doc_text" in SPEC, "§10 no longer names the default it warns about"
+    # By name: `store_doc_text` also appears in the test for switching it off,
+    # which asserts the opposite and would answer for this one.
+    pinned = "def test_a_docstore_keeping_document_text_stores_what_the_guard_rejected"
+    guards = (ROOT / "tests" / "test_guards.py").read_text(encoding="utf-8")
+    assert pinned in guards, "the hole §10 says is recorded is no longer tested"
+
+
 def test_the_counts_in_prose_match_the_clauses() -> None:
     """§10 states the counts in words and again as a list."""
     covered = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))

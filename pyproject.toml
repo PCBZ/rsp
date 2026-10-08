@@ -1,6 +1,6 @@
 [project]
 name = "rsp"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "RAG Security Protocol — where security tools hook into a RAG pipeline, and what they return"
 readme = "README.md"
 requires-python = ">=3.11"
