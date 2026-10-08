@@ -119,6 +119,21 @@ def test_coverage_table_matches_the_cases_on_disk() -> None:
     assert claimed - actual - COVERED_WITHOUT_A_CASE == set(), "§10 claims coverage with no case"
 
 
+def test_every_clause_is_in_one_row_of_the_coverage_table() -> None:
+    """The second row is what permits a tag, so nothing may fall between them.
+
+    §10 lets a clause ship on a case, which binds every implementation, or on
+    the reference host's tests, which bind one. A clause in neither row has
+    neither, and the rule is that it is deleted instead.
+    """
+    rows = dict(re.findall(r"\| (?:\*\*)?([\w ]+?)(?:\*\*)? \| ([A-Z0-9, ]+) \|", SPEC))
+    assert set(rows) == {"Covered", "Reference host only"}, sorted(rows)
+
+    listed = [clause for row in rows.values() for clause in clauses_in(row)]
+    # A repeat makes the lists differ too, so this is the only assertion needed.
+    assert sorted(listed) == sorted(CLAUSES), f"the table lists {len(listed)} of {len(CLAUSES)}"
+
+
 def test_the_counts_in_prose_match_the_clauses() -> None:
     """§10 states the counts in words and again as a list."""
     covered = clauses_in(re.search(r"\| Covered \| (.+?) \|", SPEC).group(1))

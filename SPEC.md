@@ -328,7 +328,7 @@ by a case, and R1 by the reference plugin existing at all.
 
 | Covered | R1, T1, T2, T3, T4, H1, H2, H3, M2, V1, V2, V3, V4, S1, S2, S3, S5, S6, S7, E1, E2, E3, E4, E5 |
 |---|---|
-| **Not yet** | K1, K2, M1, S4 |
+| **Reference host only** | K1, K2, M1, S4 |
 
 Cases come in two kinds. A **plugin case** is a request and the response a
 conforming plugin must give. A **host case** is a plugin's answer — or its
@@ -345,6 +345,9 @@ for it and for nothing else. `K1` and `K2` are about storage, which a host
 case cannot see unless the host offers somewhere to look.
 
 *Rationale for stating it: an implementer needs to know which clauses have been
-tested and which are still assertions. Before this version is tagged, a clause
-still without evidence is deleted rather than shipped — a dead clause misleads, and an
-implementer misled by a security spec ships an insecure host.*
+tested and which are still assertions. Evidence is a conformance case, which
+binds every implementation, or the reference host's own tests, which bind one
+— the table above says which each clause has, because the two are not worth
+the same. Before this version is tagged, a clause with neither is deleted
+rather than shipped: a dead clause misleads, and an implementer misled by a
+security spec ships an insecure host.*
