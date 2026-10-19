@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      # Restated, because a job's block replaces the workflow's rather than
+      # adding to it, and checkout would be left reading a public repository
+      # only by its being public.
+      contents: read
       # Trusted publishing: PyPI verifies this run, so no token is stored here.
       id-token: write
     steps:

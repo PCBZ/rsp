@@ -66,9 +66,11 @@ uv run pytest
   reason or cite the clause — a test enforces this.
 - `ruff` owns formatting and annotation style.
 - A workflow pins an action from `actions/*` to its major tag and everything
-  else to a hash, which is the policy `zizmor` enforces in the lint job: a
-  third party's tag can be moved, and one of these workflows uploads a
-  release.
+  else to a hash, because a third party's tag can be moved and one of these
+  workflows uploads a release. The lint job enforces half of that: `zizmor`
+  refuses an unpinned third party and accepts any ref under `actions/*`, so
+  `actions/checkout@main` passes it. The major tag is the convention, not the
+  check.
 - One issue per PR, titled `#N Short summary`. Out-of-scope findings become
   issues, not scope creep. A PR carries the labels of the issue it closes, or
   of the areas it touched where it closes none, so that what a change touched
