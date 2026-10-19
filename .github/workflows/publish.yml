@@ -21,6 +21,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          # A cache another run could have written has no business deciding
+          # what goes to PyPI.
+          enable-cache: false
 
       # The suite before the upload, because a published version cannot be taken
       # back — PyPI refuses a reused filename even after a delete.
