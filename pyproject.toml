@@ -1,10 +1,24 @@
 [project]
-name = "rsp"
-version = "0.1.0"
+name = "rag-security-protocol"
+version = "0.1.1"
 description = "RAG Security Protocol — where security tools hook into a RAG pipeline, and what they return"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
+# The distribution spells the protocol out; the package stays `import rsp`.
+authors = [{ name = "PCBZ" }]
+keywords = ["rag", "security", "protocol", "llm", "redaction", "conformance"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 
 # No runtime dependencies: a plugin author installing rsp should not inherit a RAG framework.
 dependencies = []
@@ -18,7 +32,9 @@ dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "ruff>=0.6",
-    "rsp[llamaindex]",
+    # By the name this project declares: `rsp` on PyPI is someone else's package,
+    # and naming it here installs that one over this tree.
+    "rag-security-protocol[llamaindex]",
     "pytest-html>=4.1,<5",
     "jsonschema>=4",
 ]
@@ -26,12 +42,20 @@ dev = [
 [project.scripts]
 rsp = "rsp.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/PCBZ/rsp"
+Specification = "https://github.com/PCBZ/rsp/blob/main/SPEC.md"
+Issues = "https://github.com/PCBZ/rsp/issues"
+Changelog = "https://github.com/PCBZ/rsp/releases"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["rsp"]
+# Typing :: Typed is a claim; py.typed is what makes it true for a consumer.
+artifacts = ["rsp/py.typed"]
 
 [tool.ruff]
 line-length = 100

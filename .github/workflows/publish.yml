@@ -1,0 +1,46 @@
+# Publishing is a tag push, and the tag is the only trigger: a release that can
+# be made by hand is a release whose contents nobody can derive from the tree.
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Restated, because a job's block replaces the workflow's rather than
+      # adding to it, and checkout would be left reading a public repository
+      # only by its being public.
+      contents: read
+      # Trusted publishing: PyPI verifies this run, so no token is stored here.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          # A cache another run could have written has no business deciding
+          # what goes to PyPI.
+          enable-cache: false
+
+      # The suite before the upload, because a published version cannot be taken
+      # back — PyPI refuses a reused filename even after a delete.
+      - run: uv sync --frozen --extra llamaindex
+      - run: uv run --frozen pytest tests/ examples/gitleaks-py/ -q
+
+      - name: The tag and the version must be the same release
+        run: |
+          set -euo pipefail
+          declared=$(uv run --frozen python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          tagged=${GITHUB_REF_NAME#v}
+          test "$declared" = "$tagged" || { echo "pyproject says $declared, the tag says $tagged"; exit 1; }
+
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

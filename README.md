@@ -34,7 +34,7 @@ $ echo '{"rsp_version":"0.1","hook":"on_chunk","content":"key: AKIA47CQZHT2MVPF3
 ```
 
 Offsets are bytes into UTF-8, half-open. The host applies them; a plugin never
-sees the content again. [Writing a plugin](WRITING-A-PLUGIN.md) is the page to
+sees the content again. [Writing a plugin](https://github.com/PCBZ/rsp/blob/main/WRITING-A-PLUGIN.md) is the page to
 start from — the four messages, and the three things that bite.
 
 ## Try it
@@ -64,7 +64,7 @@ The ingest guard goes after the splitter and before the embedding, which is
 the whole point: a blocked chunk is never embedded and never stored. The
 retrieve guard catches what an index already held.
 
-[`examples/host`](examples/host) is that, whole and runnable: four documents
+[`examples/host`](https://github.com/PCBZ/rsp/tree/main/examples/host) is that, whole and runnable: four documents
 through one pipeline, judged by a Python plugin and a Go one at the same time.
 The host code does not know which is which.
 
@@ -74,9 +74,10 @@ The host code does not know which is which.
 $ python conformance/run.py -- my-scanner
 ```
 
-Copy `conformance/` and `plugins/` next to your plugin. Standard library only,
-and nothing in it imports this host: you are checking against the protocol,
-not against our implementation of it. `conformance/README.md` explains roles
+Copy `conformance/` and `plugins/` next to your plugin — they are not in the
+installed package, on purpose: you are checking against the protocol, not
+against a version of it that shipped with a host. Standard library only, and
+nothing in it imports this host. `conformance/README.md` explains roles
 and the host cases.
 
 ## Where things are

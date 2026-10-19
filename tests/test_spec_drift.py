@@ -6,6 +6,7 @@ import json
 import pathlib
 import re
 import subprocess
+import tomllib
 
 import pytest
 
@@ -346,3 +347,21 @@ def test_no_adapter_keeps_its_own_copy_of_a_shared_stand_in() -> None:
         and pathlib.Path(name).parent != pathlib.Path("examples/testdata")
     ]
     assert not elsewhere, f"a shared stand-in has a private copy: {elsewhere}"
+
+
+def test_the_dev_group_names_this_project_and_not_another() -> None:
+    """A self-reference by the wrong name installs a stranger's package over this tree.
+
+    `rsp` is taken on PyPI by an unrelated tool, so the dev group naming it
+    resolves there: that package then shadows `rsp/` and every test fails on
+    an import. The distribution name is the only safe spelling.
+    """
+    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    declared = manifest["project"]["name"]
+    referenced = [
+        requirement
+        for requirement in manifest["dependency-groups"]["dev"]
+        if not requirement.startswith(declared)
+    ]
+    assert not [one for one in referenced if one.split("[")[0].strip() == "rsp"], referenced
+    assert any(one.startswith(declared) for one in manifest["dependency-groups"]["dev"])
