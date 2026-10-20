@@ -1880,7 +1880,7 @@ wheels = [
 
 [[package]]
 name = "rag-security-protocol"
-version = "0.1.1rc1"
+version = "0.1.1"
 source = { editable = "." }
 
 [package.optional-dependencies]
