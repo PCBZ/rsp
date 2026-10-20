@@ -11,7 +11,8 @@ permissions:
 env:
   UV_LINK_MODE: copy
 
-# Actions are pinned to commit SHAs: whoever can move a tag can run code with this job's token.
+# A third party's action is pinned to a hash: whoever can move its tag can run
+# code with this job's token. GitHub's own are pinned to a major tag (AGENTS.md).
 
 concurrency:
   group: ci-${{ github.ref }}

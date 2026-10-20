@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  UV_LINK_MODE: copy  # see ci.yml
+
 jobs:
   publish:
     runs-on: ubuntu-latest
